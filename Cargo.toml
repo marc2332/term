@@ -1,8 +1,10 @@
 [package]
 name = "marcterm"
 edition = "2024"
-publish = false
+publish = true
+description = "my terminal as you might have guessed by the name"
 version = "0.1.0"
+license = "MIT"
 
 [[bin]]
 name = "marcterm"
