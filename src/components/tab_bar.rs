@@ -48,7 +48,12 @@ impl Component for TabBar {
                     .on_press(move |_| {
                         radio.write_channel(AppChannel::Tabs).new_tab();
                     })
-                    .child(label().text("+").font_size(14.)),
+                    .child(
+                        svg(lucide::circle_plus())
+                            .width(Size::px(16.))
+                            .height(Size::px(16.))
+                            .stroke(Some(Color::from((200, 200, 200)))),
+                    ),
             )
     }
 }
@@ -80,7 +85,7 @@ impl Component for TabButton {
         Button::new()
             .height(Size::fill())
             .flat()
-            .rounded_2xl()
+            .rounded_lg()
             .background(background)
             .hover_background((45, 45, 45))
             .color(text_color)
@@ -120,8 +125,7 @@ impl Component for TabButton {
                                 svg(lucide::x())
                                     .width(Size::px(14.))
                                     .height(Size::px(14.))
-                                    .stroke(Some(Color::from((200, 200, 200))))
-                                    .fill((200, 200, 200)),
+                                    .stroke(Some(Color::from((200, 200, 200)))),
                             ),
                     ),
             )
