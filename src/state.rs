@@ -312,6 +312,9 @@ impl AppState {
         let tab = Tab::new(index, &self.shell.clone(), cwd);
         self.tabs.push(tab);
         self.active_tab = self.tabs.len() - 1;
+        if let Some(tab) = self.active_tab() {
+            Focus::new_for_id(tab.active_panel).request_focus();
+        }
     }
 
     pub fn close_active_tab(&mut self) {
