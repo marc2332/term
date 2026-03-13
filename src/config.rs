@@ -13,7 +13,7 @@ pub struct Config {
 }
 
 fn default_shell() -> String {
-    "bash".to_string()
+    std::env::var("SHELL").unwrap_or_else(|_| "bash".to_string())
 }
 
 fn default_font_size() -> f32 {
