@@ -1,0 +1,62 @@
+# Flatpak manifest for marcterm.
+#
+# To build and install locally:
+#   just flatpak-setup  # one-time SDK install
+#   just flatpak        # build + install
+#   just flatpak-run    # run
+#
+app-id: io.marc.term
+runtime: org.freedesktop.Platform
+runtime-version: '24.08'
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: marcterm
+finish-args:
+  # Display
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  - --device=dri
+
+  # Terminal emulator needs host shell access via flatpak-spawn --host
+  - --talk-name=org.freedesktop.Flatpak
+
+  # Filesystem access for the host shell
+  - --filesystem=host
+
+  # Network access for shell commands
+  - --share=network
+
+  # SSH agent
+  - --socket=ssh-auth
+
+modules:
+  - name: marcterm
+    buildsystem: simple
+    build-options:
+      append-path: /usr/lib/sdk/rust-stable/bin
+      build-args:
+        - --share=network
+      env:
+        CARGO_HOME: /run/build/marcterm/cargo
+    build-commands:
+      - cargo build --release
+      - install -Dm755 target/release/marcterm /app/bin/marcterm
+      - install -Dm644 icon.png /app/share/icons/hicolor/128x128/apps/io.marc.term.png
+      - install -Dm644 io.marc.term.desktop /app/share/applications/io.marc.term.desktop
+      - install -Dm644 io.marc.term.metainfo.xml /app/share/metainfo/io.marc.term.metainfo.xml
+    sources:
+      - type: dir
+        path: ..
+        skip:
+          - .git
+          - target
+          - flatpak/build-dir
+          - flatpak/.flatpak-builder
+          - flatpak/repo
+      # Desktop entry and metainfo live in flatpak/
+      - type: file
+        path: io.marc.term.desktop
+      - type: file
+        path: io.marc.term.metainfo.xml

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=marcterm
+Comment=A terminal emulator built with Freya
+Exec=marcterm
+Icon=io.marc.term
+Terminal=false
+Type=Application
+Categories=System;TerminalEmulator;
+Keywords=terminal;console;shell;command;
+StartupWMClass=marcterm

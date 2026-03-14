@@ -10,6 +10,15 @@ Terminal emulator built with [Freya](https://github.com/marc2332/freya) and Rust
 
 ## 📦 Installation
 
+### Flatpak (Linux)
+
+```sh
+flatpak remote-add --if-not-exists marcterm https://marc2332.github.io/marcterm --no-gpg-verify
+flatpak install marcterm io.marc.term
+```
+
+### Cargo
+
 ```sh
 cargo install marcterm
 ```

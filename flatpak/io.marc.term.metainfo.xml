@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.marc.term</id>
+  <name>marcterm</name>
+  <summary>Terminal emulator built with Freya and Rust</summary>
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+  <developer id="io.github.marc2332">
+    <name>Marc Espin</name>
+  </developer>
+  <description>
+    <p>
+      Terminal emulator built with Freya and Rust. Supports tabs, panel
+      splitting (horizontal, vertical, and 2x2 grid), resizable panes,
+      and adjustable font size.
+    </p>
+  </description>
+  <launchable type="desktop-id">io.marc.term.desktop</launchable>
+  <url type="homepage">https://github.com/marc2332/marcterm</url>
+  <url type="bugtracker">https://github.com/marc2332/marcterm/issues</url>
+  <url type="vcs-browser">https://github.com/marc2332/marcterm</url>
+  <content_rating type="oars-1.1" />
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/marc2332/marcterm/main/demo.png</image>
+      <caption>Marcterm with split panels</caption>
+    </screenshot>
+  </screenshots>
+  <releases>
+    <release version="0.1.5" date="2026-03-09">
+      <description><p>Current release.</p></description>
+    </release>
+  </releases>
+</component>

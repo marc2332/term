@@ -28,14 +28,34 @@ pub enum PanelNode {
     Vertical(Box<PanelNode>, Box<PanelNode>),
 }
 
+fn is_flatpak() -> bool {
+    std::env::var("FLATPAK_ID").is_ok()
+}
+
 fn make_handle(shell: &str, cwd: Option<PathBuf>) -> TerminalHandle {
-    let mut cmd = CommandBuilder::new(shell);
-    cmd.env("TERM", "xterm-256color");
-    cmd.env("COLORTERM", "truecolor");
-    cmd.env("LANG", "en_GB.UTF-8");
-    if let Some(dir) = cwd {
-        cmd.cwd(dir);
-    }
+    let cmd = if is_flatpak() {
+        let mut cmd = CommandBuilder::new("flatpak-spawn");
+        cmd.args(["--host", "--watch-bus"]);
+        cmd.arg("--env=TERM=xterm-256color");
+        cmd.arg("--env=COLORTERM=truecolor");
+        cmd.arg("--env=LANG=en_GB.UTF-8");
+        if let Some(ref dir) = cwd {
+            cmd.arg(format!("--directory={}", dir.display()));
+        }
+        cmd.arg(shell);
+        // https://github.com/flatpak/flatpak/issues/3697
+        cmd.set_controlling_tty(false);
+        cmd
+    } else {
+        let mut cmd = CommandBuilder::new(shell);
+        cmd.env("TERM", "xterm-256color");
+        cmd.env("COLORTERM", "truecolor");
+        cmd.env("LANG", "en_GB.UTF-8");
+        if let Some(dir) = cwd {
+            cmd.cwd(dir);
+        }
+        cmd
+    };
     TerminalHandle::new(TerminalId::new(), cmd, None).expect("failed to spawn PTY")
 }
 
@@ -441,24 +461,24 @@ impl AppState {
     }
 
     pub fn close_active_panel(&mut self) {
-        if let Some(tab) = self.active_tab_mut() {
-            if let Some(new_root) = tab.panels.clone().remove_leaf(tab.active_panel) {
-                let leaves = new_root.leaves();
-                tab.panels = new_root;
-                if let Some(panel) = leaves.into_iter().last() {
-                    tab.active_panel = panel;
-                    Focus::new_for_id(panel).request_focus();
-                }
+        if let Some(tab) = self.active_tab_mut()
+            && let Some(new_root) = tab.panels.clone().remove_leaf(tab.active_panel)
+        {
+            let leaves = new_root.leaves();
+            tab.panels = new_root;
+            if let Some(panel) = leaves.into_iter().last() {
+                tab.active_panel = panel;
+                Focus::new_for_id(panel).request_focus();
             }
         }
     }
 
     pub fn navigate(&mut self, dir: NavDirection) {
-        if let Some(tab) = self.active_tab_mut() {
-            if let Some(neighbour) = tab.panels.find_neighbour(tab.active_panel, dir) {
-                tab.active_panel = neighbour;
-                Focus::new_for_id(neighbour).request_focus();
-            }
+        if let Some(tab) = self.active_tab_mut()
+            && let Some(neighbour) = tab.panels.find_neighbour(tab.active_panel, dir)
+        {
+            tab.active_panel = neighbour;
+            Focus::new_for_id(neighbour).request_focus();
         }
     }
 
