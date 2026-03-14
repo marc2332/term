@@ -108,13 +108,16 @@ impl Component for TabButton {
                 rect()
                     .width(Size::fill())
                     .horizontal()
+                    .content(Content::flex())
                     .cross_align(Alignment::Center)
                     .main_align(Alignment::SpaceBetween)
                     .child(
                         label()
                             .text(self.title.clone())
                             .font_size(14.)
-                            .text_overflow(TextOverflow::Ellipsis),
+                            .text_overflow(TextOverflow::Ellipsis)
+                            .max_lines(1)
+                            .width(Size::flex(1.)),
                     )
                     .child(
                         Button::new()
