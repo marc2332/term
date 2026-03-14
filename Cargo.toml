@@ -3,7 +3,7 @@ name = "marcterm"
 edition = "2024"
 publish = true
 description = "my terminal as you might have guessed by the name"
-version = "0.1.5"
+version = "0.1.6"
 license = "MIT"
 repository = "https://github.com/marc2332/marcterm"
 
