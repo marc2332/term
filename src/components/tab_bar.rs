@@ -23,13 +23,11 @@ impl Component for TabBar {
         };
 
         rect()
-            .width(Size::fill())
-            .height(Size::px(36.))
-            .cross_align(Alignment::Center)
+            .expanded()
             .background((20, 20, 20))
             .padding(4.)
             .spacing(4.)
-            .direction(Direction::Horizontal)
+            .direction(Direction::Vertical)
             .children(tabs.into_iter().map(|(tab_id, title, is_active)| {
                 TabButton {
                     tab_id,
@@ -41,18 +39,27 @@ impl Component for TabBar {
             .child(
                 Button::new()
                     .flat()
-                    .width(Size::px(20.))
-                    .height(Size::px(20.))
-                    .compact()
-                    .rounded_full()
+                    .width(Size::fill())
+                    .rounded_lg()
+                    .hover_background((45, 45, 45))
                     .on_press(move |_| {
                         radio.write_channel(AppChannel::Tabs).new_tab();
                     })
+                    .ripple()
+                    .color((230, 230, 230))
                     .child(
-                        svg(lucide::circle_plus())
-                            .width(Size::px(16.))
-                            .height(Size::px(16.))
-                            .stroke((200, 200, 200)),
+                        rect()
+                            .width(Size::fill())
+                            .horizontal()
+                            .cross_align(Alignment::Center)
+                            .spacing(4.)
+                            .child(
+                                svg(lucide::circle_plus())
+                                    .width(Size::px(16.))
+                                    .height(Size::px(16.))
+                                    .stroke((200, 200, 200)),
+                            )
+                            .child(label().text("New Tab").font_size(14.)),
                     ),
             )
     }
@@ -83,7 +90,7 @@ impl Component for TabButton {
         };
 
         Button::new()
-            .height(Size::fill())
+            .width(Size::fill())
             .flat()
             .rounded_lg()
             .background(background)
@@ -99,14 +106,14 @@ impl Component for TabButton {
             .color((230, 230, 230))
             .child(
                 rect()
+                    .width(Size::fill())
                     .horizontal()
                     .cross_align(Alignment::Center)
-                    .spacing(4.)
+                    .main_align(Alignment::SpaceBetween)
                     .child(
                         label()
                             .text(self.title.clone())
                             .font_size(14.)
-                            .max_width(Size::px(200.))
                             .text_overflow(TextOverflow::Ellipsis),
                     )
                     .child(

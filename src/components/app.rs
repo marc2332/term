@@ -159,7 +159,11 @@ impl Component for App {
                     _ => {}
                 }
             })
-            .child(TabBar)
-            .child(rect().expanded().child(TabContent))
+            .child(
+                ResizableContainer::new()
+                    .direction(Direction::Horizontal)
+                    .panel(ResizablePanel::new(15.).child(TabBar))
+                    .panel(ResizablePanel::new(85.).child(TabContent)),
+            )
     }
 }
