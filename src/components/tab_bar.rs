@@ -28,14 +28,22 @@ impl Component for TabBar {
             .padding(4.)
             .spacing(4.)
             .direction(Direction::Vertical)
-            .children(tabs.into_iter().map(|(tab_id, title, is_active)| {
-                TabButton {
-                    tab_id,
-                    title,
-                    is_active,
-                }
-                .into_element()
-            }))
+            .content(Content::flex())
+            .child(
+                ScrollView::new()
+                    .height(Size::flex(1.))
+                    .width(Size::fill())
+                    .spacing(4.)
+                    .show_scrollbar(false)
+                    .children(tabs.into_iter().map(|(tab_id, title, is_active)| {
+                        TabButton {
+                            tab_id,
+                            title,
+                            is_active,
+                        }
+                        .into_element()
+                    })),
+            )
             .child(
                 Button::new()
                     .flat()
