@@ -46,7 +46,7 @@ struct Cli {
 fn main() {
     #[cfg(target_os = "linux")]
     fix_flatpak_cursor_theme();
-  
+
     let cli = Cli::parse();
     let config = Config::load();
 

@@ -75,8 +75,7 @@ impl Component for App {
                                     TitleWatchResult::Changed(tab_id, panel_id, title)
                                         if !title.is_empty() =>
                                     {
-                                        let mut state =
-                                            radio.write_channel(AppChannel::Tabs);
+                                        let mut state = radio.write_channel(AppChannel::Tabs);
                                         if let Some(tab) =
                                             state.tabs.iter_mut().find(|t| t.id == tab_id)
                                         {
