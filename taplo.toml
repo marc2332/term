@@ -1,2 +1,1 @@
-exclude = ["flatpak/**"]
-include = ["**/*.toml"]
+include = ["*.toml"]

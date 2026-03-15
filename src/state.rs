@@ -202,12 +202,12 @@ impl PanelNode {
         }
     }
 
-    pub fn all_handles(&self) -> Vec<TerminalHandle> {
+    pub fn all_panels(&self) -> Vec<(AccessibilityId, TerminalHandle)> {
         match self {
-            PanelNode::Leaf(_, h) => vec![h.clone()],
+            PanelNode::Leaf(id, h) => vec![(*id, h.clone())],
             PanelNode::Horizontal(a, b) | PanelNode::Vertical(a, b) => {
-                let mut v = a.all_handles();
-                v.extend(b.all_handles());
+                let mut v = a.all_panels();
+                v.extend(b.all_panels());
                 v
             }
         }
@@ -294,6 +294,16 @@ impl Tab {
             panels: root,
             active_panel,
             outputting: false,
+        }
+    }
+
+    pub fn update_title_from_active_panel(&mut self) {
+        if let Some(handle) = self.panels.handle(self.active_panel) {
+            if let Some(title) = handle.title() {
+                if !title.is_empty() {
+                    self.title = title;
+                }
+            }
         }
     }
 }
@@ -470,6 +480,7 @@ impl AppState {
             tab.panels = new_root;
             if let Some(panel) = leaves.into_iter().last() {
                 tab.active_panel = panel;
+                tab.update_title_from_active_panel();
                 Focus::new_for_id(panel).request_focus();
             }
         }
@@ -480,6 +491,7 @@ impl AppState {
             && let Some(neighbour) = tab.panels.find_neighbour(tab.active_panel, dir)
         {
             tab.active_panel = neighbour;
+            tab.update_title_from_active_panel();
             Focus::new_for_id(neighbour).request_focus();
         }
     }

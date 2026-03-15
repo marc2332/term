@@ -28,17 +28,25 @@ impl Component for TabBar {
             .padding(4.)
             .spacing(4.)
             .direction(Direction::Vertical)
-            .children(
-                tabs.into_iter()
-                    .map(|(tab_id, title, is_active, outputting)| {
-                        TabButton {
-                            tab_id,
-                            title,
-                            is_active,
-                            outputting,
-                        }
-                        .into_element()
-                    }),
+            .content(Content::flex())
+            .child(
+                ScrollView::new()
+                    .height(Size::flex(1.))
+                    .width(Size::fill())
+                    .spacing(4.)
+                    .show_scrollbar(false)
+                    .children(
+                        tabs.into_iter()
+                            .map(|(tab_id, title, is_active, outputting)| {
+                                TabButton {
+                                    tab_id,
+                                    title,
+                                    is_active,
+                                    outputting,
+                                }
+                                .into_element()
+                            }),
+                    ),
             )
             .child(
                 Button::new()
@@ -117,15 +125,16 @@ impl Component for TabButton {
                 rect()
                     .width(Size::fill())
                     .horizontal()
+                    .content(Content::flex())
                     .cross_align(Alignment::Center)
                     .main_align(Alignment::SpaceBetween)
                     .on_pointer_enter(move |_| hovered.set(true))
                     .on_pointer_leave(move |_| hovered.set(false))
                     .child(
-                        label()
-                            .text(self.title.clone())
-                            .font_size(14.)
-                            .text_overflow(TextOverflow::Ellipsis),
+                        OverflowedContent::new()
+                            .width(Size::flex(1.))
+                            .height(Size::auto())
+                            .child(label().text(self.title.clone()).font_size(14.).max_lines(1)),
                     )
                     .child(if show_close {
                         Button::new()

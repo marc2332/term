@@ -1,3 +1,6 @@
+use std::cell::RefCell;
+use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use async_io::Timer;
@@ -11,23 +14,26 @@ use crate::{
 };
 
 enum WatchResult {
-    TitleChanged(TabId, String),
-    Closed(TerminalId),
+    TitleChanged(TabId, AccessibilityId, String),
+    Closed,
     OutputReceived(TabId),
 }
 
-async fn watch_handle(tab_id: TabId, handle: TerminalHandle) -> WatchResult {
-    let id = handle.id();
+async fn watch_handle(
+    tab_id: TabId,
+    panel_id: AccessibilityId,
+    handle: TerminalHandle,
+) -> WatchResult {
     let h1 = handle.clone();
     let h2 = handle.clone();
     futures::future::select_all([
         Box::pin(async move {
             h1.title_changed().await;
-            WatchResult::TitleChanged(tab_id, h1.title().unwrap_or_default())
+            WatchResult::TitleChanged(tab_id, panel_id, h1.title().unwrap_or_default())
         }) as std::pin::Pin<Box<dyn futures::Future<Output = WatchResult>>>,
         Box::pin(async move {
             h2.closed().await;
-            WatchResult::Closed(id)
+            WatchResult::Closed
         }),
         Box::pin(async move {
             handle.output_received().await;
@@ -55,97 +61,101 @@ impl Component for App {
         });
 
         let mut radio = use_radio(AppChannel::Tabs);
+        let watched = use_hook(|| Rc::new(RefCell::new(HashSet::<TerminalId>::new())));
+        let last_output = use_hook(|| Rc::new(RefCell::new(HashMap::<TabId, Instant>::new())));
 
-        // Watch for title changes, terminal closures, and output activity.
-        use_future(move || async move {
-            let idle = Duration::from_secs(1);
-            let mut closed_ids = std::collections::HashSet::<TerminalId>::new();
-            let mut last_output: std::collections::HashMap<TabId, Instant> =
-                std::collections::HashMap::new();
+        let last_output_sweeper = last_output.clone();
 
-            loop {
-                let watchers: Vec<_> = {
-                    let state = radio.read();
-                    state
-                        .tabs
-                        .iter()
-                        .flat_map(|tab| {
-                            let tab_id = tab.id;
-                            tab.panels
-                                .all_handles()
-                                .into_iter()
-                                .filter(|h| !closed_ids.contains(&h.id()))
-                                .map(move |h| Box::pin(watch_handle(tab_id, h)))
-                        })
-                        .collect()
-                };
-
-                if watchers.is_empty() {
-                    Timer::after(Duration::from_millis(100)).await;
-                    continue;
-                }
-
-                // Race all handle watchers against the idle timeout.
-                match futures::future::select(
-                    Box::pin(futures::future::select_all(watchers)),
-                    Box::pin(Timer::after(idle)),
-                )
-                .await
-                {
-                    futures::future::Either::Left(((result, _, _), _)) => match result {
-                        WatchResult::TitleChanged(tab_id, title) if !title.is_empty() => {
-                            if let Some(tab) = radio
-                                .write_channel(AppChannel::Tabs)
-                                .tabs
-                                .iter_mut()
-                                .find(|t| t.id == tab_id)
-                            {
-                                tab.title = title;
-                            }
-                        }
-                        WatchResult::Closed(terminal_id) => {
-                            closed_ids.insert(terminal_id);
-                        }
-                        WatchResult::OutputReceived(tab_id) => {
-                            last_output.insert(tab_id, Instant::now());
-                            let state = radio.read();
-                            if state.tabs.iter().any(|t| t.id == tab_id && !t.outputting) {
-                                drop(state);
-                                if let Some(tab) = radio
-                                    .write_channel(AppChannel::Tabs)
-                                    .tabs
-                                    .iter_mut()
-                                    .find(|t| t.id == tab_id)
-                                {
-                                    tab.outputting = true;
+        use_side_effect(move || {
+            let state = radio.read();
+            for tab in &state.tabs {
+                let tab_id = tab.id;
+                for (panel_id, handle) in tab.panels.all_panels() {
+                    if !watched.borrow().contains(&handle.id()) {
+                        watched.borrow_mut().insert(handle.id());
+                        let watched = watched.clone();
+                        let last_output = last_output.clone();
+                        let handle_id = handle.id();
+                        spawn(async move {
+                            loop {
+                                match watch_handle(tab_id, panel_id, handle.clone()).await {
+                                    WatchResult::TitleChanged(tab_id, panel_id, title)
+                                        if !title.is_empty() =>
+                                    {
+                                        let mut state = radio.write_channel(AppChannel::Tabs);
+                                        if let Some(tab) =
+                                            state.tabs.iter_mut().find(|t| t.id == tab_id)
+                                        {
+                                            if tab.active_panel == panel_id {
+                                                tab.title = title;
+                                            }
+                                        }
+                                    }
+                                    WatchResult::OutputReceived(tab_id) => {
+                                        last_output.borrow_mut().insert(tab_id, Instant::now());
+                                        let state = radio.read();
+                                        if state
+                                            .tabs
+                                            .iter()
+                                            .any(|t| t.id == tab_id && !t.outputting)
+                                        {
+                                            drop(state);
+                                            if let Some(tab) = radio
+                                                .write_channel(AppChannel::Tabs)
+                                                .tabs
+                                                .iter_mut()
+                                                .find(|t| t.id == tab_id)
+                                            {
+                                                tab.outputting = true;
+                                            }
+                                        }
+                                    }
+                                    WatchResult::Closed => {
+                                        watched.borrow_mut().remove(&handle_id);
+                                        break;
+                                    }
+                                    _ => {}
                                 }
                             }
-                        }
-                        _ => {}
-                    },
-                    futures::future::Either::Right(_) => {}
+                        });
+                    }
                 }
+            }
+        });
 
-                // Sweep stale outputting flags.
-                let now = Instant::now();
-                let is_stale = |tab: &crate::state::Tab| {
-                    tab.outputting
-                        && last_output
-                            .get(&tab.id)
-                            .map(|t| now.duration_since(*t) > idle)
-                            .unwrap_or(true)
-                };
-
-                let state = radio.read();
-                if state.tabs.iter().any(|t| is_stale(t)) {
-                    drop(state);
-                    let mut state = radio.write_channel(AppChannel::Tabs);
-                    for tab in &mut state.tabs {
-                        if is_stale(tab) {
-                            tab.outputting = false;
+        // Periodically clear stale outputting flags.
+        use_future(move || {
+            let last_output = last_output_sweeper.clone();
+            async move {
+                let idle = Duration::from_secs(1);
+                loop {
+                    Timer::after(idle).await;
+                    let now = Instant::now();
+                    let lo = last_output.borrow();
+                    let is_stale = |tab: &crate::state::Tab| {
+                        tab.outputting
+                            && lo
+                                .get(&tab.id)
+                                .map(|ts| now.duration_since(*ts) > idle)
+                                .unwrap_or(true)
+                    };
+                    let state = radio.read();
+                    if state.tabs.iter().any(|t| is_stale(t)) {
+                        drop(lo);
+                        drop(state);
+                        let lo = last_output.borrow();
+                        let mut state = radio.write_channel(AppChannel::Tabs);
+                        for tab in &mut state.tabs {
+                            if tab.outputting
+                                && lo
+                                    .get(&tab.id)
+                                    .map(|ts| now.duration_since(*ts) > idle)
+                                    .unwrap_or(true)
+                            {
+                                tab.outputting = false;
+                            }
                         }
                     }
-                    last_output.retain(|id, _| state.tabs.iter().any(|t| t.id == *id));
                 }
             }
         });

@@ -3,7 +3,7 @@ name = "marcterm"
 edition = "2024"
 publish = true
 description = "my terminal as you might have guessed by the name"
-version = "0.1.6"
+version = "0.1.8"
 license = "MIT"
 repository = "https://github.com/marc2332/marcterm"
 
@@ -18,8 +18,13 @@ freya = { version = "0.4.0-rc.13", features = [
   "material-design",
   "icons",
 ] }
+clap = { version = "4", features = ["derive"] }
+freya-performance-plugin = "0.4.0-rc.13"
 serde = { version = "1", features = ["derive"] }
 toml = "0.9"
 dirs = "6"
 futures = "0.3"
 async-io = "2"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+xcursor = "0.3"

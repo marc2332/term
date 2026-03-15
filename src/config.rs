@@ -31,6 +31,14 @@ impl Default for Config {
 
 impl Config {
     pub fn path() -> std::path::PathBuf {
+        // Inside Flatpak, XDG_CONFIG_HOME points to ~/.var/app/<id>/config/
+        // but we want the host's ~/.config/ since marcterm integrates with the host.
+        if std::env::var("FLATPAK_ID").is_ok() {
+            let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+            return std::path::PathBuf::from(home)
+                .join(".config")
+                .join("marcterm.toml");
+        }
         dirs::config_dir()
             .unwrap_or_else(|| std::path::PathBuf::from("."))
             .join("marcterm.toml")
@@ -38,7 +46,23 @@ impl Config {
 
     /// Load config from [`Config::path`], falling back to defaults on any error.
     pub fn load() -> Self {
-        let contents = std::fs::read_to_string(Self::path()).unwrap_or_default();
-        toml::from_str(&contents).unwrap_or_default()
+        let path = Self::path();
+        let contents = match std::fs::read_to_string(&path) {
+            Ok(c) => {
+                eprintln!("Loaded config from {}", path.display());
+                c
+            }
+            Err(e) => {
+                eprintln!("Could not read config from {}: {e}", path.display());
+                return Self::default();
+            }
+        };
+        match toml::from_str(&contents) {
+            Ok(config) => config,
+            Err(e) => {
+                eprintln!("Failed to parse {}: {e}", path.display());
+                Self::default()
+            }
+        }
     }
 }
