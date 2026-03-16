@@ -70,6 +70,11 @@ impl Component for Panel {
                         return;
                     }
 
+                    if matches!(&e.key, Key::Named(NamedKey::Tab)) {
+                        e.prevent_default();
+                        e.stop_propagation();
+                    }
+
                    match &e.key {
                         Key::Character(ch)
                             if ctrl_shift && ch.eq_ignore_ascii_case("c") =>
