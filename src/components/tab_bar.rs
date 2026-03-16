@@ -105,10 +105,7 @@ impl Component for TabButton {
             .hover_background((45, 45, 45))
             .color(text_color)
             .on_press(move |_: Event<PressEventData>| {
-                let mut state = radio.write_channel(AppChannel::Tabs);
-                if let Some(idx) = state.tabs.iter().position(|t| t.id == tab_id) {
-                    state.active_tab = idx;
-                }
+                radio.write_channel(AppChannel::Tabs).switch_to_tab(tab_id);
             })
             .ripple()
             .color((230, 230, 230))

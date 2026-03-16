@@ -342,9 +342,7 @@ impl AppState {
         let tab = Tab::new(index, &self.shell.clone(), cwd);
         self.tabs.push(tab);
         self.active_tab = self.tabs.len() - 1;
-        if let Some(tab) = self.active_tab() {
-            Focus::new_for_id(tab.active_panel).request_focus();
-        }
+        self.focus_active_panel();
     }
 
     pub fn close_active_tab(&mut self) {
@@ -355,6 +353,7 @@ impl AppState {
         if self.active_tab >= self.tabs.len() {
             self.active_tab = self.tabs.len() - 1;
         }
+        self.focus_active_panel();
     }
 
     pub fn close_tab_by_id(&mut self, tab_id: TabId) {
@@ -366,9 +365,20 @@ impl AppState {
             if self.active_tab >= self.tabs.len() {
                 self.active_tab = self.tabs.len() - 1;
             }
-            if let Some(tab) = self.tabs.get(self.active_tab) {
-                Focus::new_for_id(tab.active_panel).request_focus();
-            }
+            self.focus_active_panel();
+        }
+    }
+
+    fn focus_active_panel(&self) {
+        if let Some(tab) = self.active_tab() {
+            Focus::new_for_id(tab.active_panel).request_focus();
+        }
+    }
+
+    pub fn switch_to_tab(&mut self, tab_id: TabId) {
+        if let Some(idx) = self.tabs.iter().position(|t| t.id == tab_id) {
+            self.active_tab = idx;
+            self.focus_active_panel();
         }
     }
 
@@ -377,6 +387,7 @@ impl AppState {
             return;
         }
         self.active_tab = (self.active_tab + 1) % self.tabs.len();
+        self.focus_active_panel();
     }
 
     pub fn prev_tab(&mut self) {
@@ -387,6 +398,7 @@ impl AppState {
             .active_tab
             .checked_sub(1)
             .unwrap_or(self.tabs.len() - 1);
+        self.focus_active_panel();
     }
 
     pub fn split_horizontal(&mut self) {
