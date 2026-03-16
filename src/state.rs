@@ -282,6 +282,7 @@ pub struct Tab {
     pub title: String,
     pub panels: PanelNode,
     pub active_panel: AccessibilityId,
+    pub outputting: bool,
 }
 
 impl Tab {
@@ -292,6 +293,7 @@ impl Tab {
             title: format!("Terminal {}", index + 1),
             panels: root,
             active_panel,
+            outputting: false,
         }
     }
 

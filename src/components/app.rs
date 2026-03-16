@@ -1,7 +1,10 @@
 use std::cell::RefCell;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::pin::pin;
 use std::rc::Rc;
+use std::time::{Duration, Instant};
 
+use async_io::Timer;
 use freya::prelude::*;
 use freya::radio::*;
 use freya::terminal::{TerminalHandle, TerminalId};
@@ -11,33 +14,35 @@ use crate::{
     state::{AppChannel, AppState, NavDirection, TabId},
 };
 
-enum TitleWatchResult {
-    Changed(TabId, AccessibilityId, String),
+enum WatchResult {
+    TitleChanged(TabId, AccessibilityId, String),
     Closed,
+    OutputReceived(TabId),
 }
 
 async fn watch_handle(
     tab_id: TabId,
     panel_id: AccessibilityId,
     handle: TerminalHandle,
-) -> TitleWatchResult {
-    let closed = futures::future::select(
-        Box::pin(async {
-            handle.clone().title_changed().await;
-            false
-        }),
-        Box::pin(async {
-            handle.clone().closed().await;
-            true
-        }),
-    )
-    .await;
-
-    match closed {
-        futures::future::Either::Left(_) => {
-            TitleWatchResult::Changed(tab_id, panel_id, handle.title().unwrap_or_default())
-        }
-        futures::future::Either::Right(_) => TitleWatchResult::Closed,
+) -> WatchResult {
+    let title = pin!(async {
+        handle.title_changed().await;
+        WatchResult::TitleChanged(tab_id, panel_id, handle.title().unwrap_or_default())
+    });
+    let closed = pin!(async {
+        handle.closed().await;
+        WatchResult::Closed
+    });
+    let output = pin!(async {
+        handle.output_received().await;
+        WatchResult::OutputReceived(tab_id)
+    });
+    match futures::future::select(title, futures::future::select(closed, output)).await {
+        futures::future::Either::Left((result, _)) => result,
+        futures::future::Either::Right((inner, _)) => match inner {
+            futures::future::Either::Left((result, _))
+            | futures::future::Either::Right((result, _)) => result,
+        },
     }
 }
 
@@ -59,6 +64,7 @@ impl Component for App {
 
         let mut radio = use_radio(AppChannel::Tabs);
         let watched = use_hook(|| Rc::new(RefCell::new(HashSet::<TerminalId>::new())));
+        let last_output = use_hook(|| Rc::new(RefCell::new(HashMap::<TabId, Instant>::new())));
 
         use_side_effect(move || {
             let state = radio.read();
@@ -68,11 +74,13 @@ impl Component for App {
                     if !watched.borrow().contains(&handle.id()) {
                         watched.borrow_mut().insert(handle.id());
                         let watched = watched.clone();
+                        let last_output = last_output.clone();
                         let handle_id = handle.id();
                         spawn(async move {
+                            let idle = Duration::from_secs(1);
                             loop {
                                 match watch_handle(tab_id, panel_id, handle.clone()).await {
-                                    TitleWatchResult::Changed(tab_id, panel_id, title)
+                                    WatchResult::TitleChanged(tab_id, panel_id, title)
                                         if !title.is_empty() =>
                                     {
                                         let mut state = radio.write_channel(AppChannel::Tabs);
@@ -84,7 +92,49 @@ impl Component for App {
                                             }
                                         }
                                     }
-                                    TitleWatchResult::Closed => {
+                                    WatchResult::OutputReceived(tab_id) => {
+                                        last_output.borrow_mut().insert(tab_id, Instant::now());
+                                        if let Some(tab) = radio
+                                            .write_channel(AppChannel::Tabs)
+                                            .tabs
+                                            .iter_mut()
+                                            .find(|t| t.id == tab_id)
+                                        {
+                                            tab.outputting = true;
+                                        }
+
+                                        // Keep consuming output until idle for 1 second.
+                                        loop {
+                                            let more = pin!(handle.output_received());
+                                            let timeout = pin!(Timer::after(idle));
+                                            match futures::future::select(more, timeout).await {
+                                                futures::future::Either::Left(_) => {
+                                                    last_output
+                                                        .borrow_mut()
+                                                        .insert(tab_id, Instant::now());
+                                                }
+                                                futures::future::Either::Right(_) => break,
+                                            }
+                                        }
+
+                                        // Only clear if no other panel refreshed the timestamp.
+                                        let stale = last_output
+                                            .borrow()
+                                            .get(&tab_id)
+                                            .map(|ts| ts.elapsed() > idle)
+                                            .unwrap_or(true);
+                                        if stale {
+                                            if let Some(tab) = radio
+                                                .write_channel(AppChannel::Tabs)
+                                                .tabs
+                                                .iter_mut()
+                                                .find(|t| t.id == tab_id)
+                                            {
+                                                tab.outputting = false;
+                                            }
+                                        }
+                                    }
+                                    WatchResult::Closed => {
                                         watched.borrow_mut().remove(&handle_id);
                                         break;
                                     }

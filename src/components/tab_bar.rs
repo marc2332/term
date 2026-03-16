@@ -12,13 +12,13 @@ impl Component for TabBar {
     fn render(&self) -> impl IntoElement {
         let mut radio = use_radio(AppChannel::Tabs);
 
-        let tabs: Vec<(TabId, String, bool)> = {
+        let tabs: Vec<(TabId, String, bool, bool)> = {
             let state = radio.read();
             state
                 .tabs
                 .iter()
                 .enumerate()
-                .map(|(i, t)| (t.id, t.title.clone(), i == state.active_tab))
+                .map(|(i, t)| (t.id, t.title.clone(), i == state.active_tab, t.outputting))
                 .collect()
         };
 
@@ -35,14 +35,18 @@ impl Component for TabBar {
                     .width(Size::fill())
                     .spacing(4.)
                     .show_scrollbar(false)
-                    .children(tabs.into_iter().map(|(tab_id, title, is_active)| {
-                        TabButton {
-                            tab_id,
-                            title,
-                            is_active,
-                        }
-                        .into_element()
-                    })),
+                    .children(
+                        tabs.into_iter()
+                            .map(|(tab_id, title, is_active, outputting)| {
+                                TabButton {
+                                    tab_id,
+                                    title,
+                                    is_active,
+                                    outputting,
+                                }
+                                .into_element()
+                            }),
+                    ),
             )
             .child(
                 Button::new()
@@ -78,13 +82,16 @@ struct TabButton {
     tab_id: TabId,
     title: String,
     is_active: bool,
+    outputting: bool,
 }
 
 impl Component for TabButton {
     fn render(&self) -> impl IntoElement {
         let tab_id = self.tab_id;
         let is_active = self.is_active;
+        let outputting = self.outputting;
         let mut radio = use_radio(AppChannel::Tabs);
+        let mut hovered = use_state(|| false);
 
         let background: Color = if is_active {
             (35, 35, 35).into()
@@ -96,6 +103,8 @@ impl Component for TabButton {
         } else {
             (140, 140, 140).into()
         };
+
+        let show_close = *hovered.read() || !outputting;
 
         Button::new()
             .width(Size::fill())
@@ -116,13 +125,15 @@ impl Component for TabButton {
                     .content(Content::flex())
                     .cross_align(Alignment::Center)
                     .main_align(Alignment::SpaceBetween)
+                    .on_pointer_enter(move |_| hovered.set(true))
+                    .on_pointer_leave(move |_| hovered.set(false))
                     .child(
                         OverflowedContent::new()
                             .width(Size::flex(1.))
                             .height(Size::auto())
                             .child(label().text(self.title.clone()).font_size(14.).max_lines(1)),
                     )
-                    .child(
+                    .child(if show_close {
                         Button::new()
                             .flat()
                             .width(Size::px(20.))
@@ -140,8 +151,16 @@ impl Component for TabButton {
                                     .width(Size::px(14.))
                                     .height(Size::px(14.))
                                     .stroke((200, 200, 200)),
-                            ),
-                    ),
+                            )
+                            .into_element()
+                    } else {
+                        rect()
+                            .width(Size::px(20.))
+                            .height(Size::px(20.))
+                            .center()
+                            .child(CircularLoader::new().size(14.).primary_color(text_color))
+                            .into_element()
+                    }),
             )
     }
 
