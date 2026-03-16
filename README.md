@@ -19,8 +19,8 @@
 ### Flatpak (Linux)
 
 ```sh
-flatpak remote-add --if-not-exists marcterm https://marc2332.github.io/marcterm --no-gpg-verify
-flatpak install marcterm io.marc.term
+flatpak remote-add --if-not-exists --no-gpg-verify --user marcterm https://marc2332.github.io/marcterm 
+flatpak install --user marcterm io.marc.term
 ```
 
 ### Cargo
