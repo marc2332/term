@@ -45,33 +45,34 @@ impl Component for TabBar {
                                     outputting,
                                 }
                                 .into_element()
-                            }),
-                    ),
-            )
-            .child(
-                Button::new()
-                    .flat()
-                    .width(Size::fill())
-                    .rounded_lg()
-                    .hover_background((45, 45, 45))
-                    .on_press(move |_| {
-                        radio.write_channel(AppChannel::Tabs).new_tab();
-                    })
-                    .ripple()
-                    .color((230, 230, 230))
-                    .child(
-                        rect()
-                            .width(Size::fill())
-                            .horizontal()
-                            .cross_align(Alignment::Center)
-                            .spacing(4.)
-                            .child(
-                                svg(lucide::circle_plus())
-                                    .width(Size::px(16.))
-                                    .height(Size::px(16.))
-                                    .stroke((200, 200, 200)),
-                            )
-                            .child(label().text("New Tab").font_size(14.)),
+                            })
+                            .chain(std::iter::once(
+                                Button::new()
+                                    .flat()
+                                    .width(Size::fill())
+                                    .rounded_lg()
+                                    .hover_background((45, 45, 45))
+                                    .on_press(move |_| {
+                                        radio.write_channel(AppChannel::Tabs).new_tab();
+                                    })
+                                    .ripple()
+                                    .color((230, 230, 230))
+                                    .child(
+                                        rect()
+                                            .width(Size::fill())
+                                            .horizontal()
+                                            .cross_align(Alignment::Center)
+                                            .spacing(4.)
+                                            .child(
+                                                svg(lucide::circle_plus())
+                                                    .width(Size::px(16.))
+                                                    .height(Size::px(16.))
+                                                    .stroke((200, 200, 200)),
+                                            )
+                                            .child(label().text("New Tab").font_size(14.)),
+                                    )
+                                    .into_element(),
+                            )),
                     ),
             )
     }
