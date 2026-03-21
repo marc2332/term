@@ -56,7 +56,7 @@ fn make_handle(shell: &str, cwd: Option<PathBuf>) -> TerminalHandle {
         }
         cmd
     };
-    TerminalHandle::new(TerminalId::new(), cmd, None).expect("failed to spawn PTY")
+    TerminalHandle::new(TerminalId::new(), cmd, Some(10_000)).expect("failed to spawn PTY")
 }
 
 impl PanelNode {
