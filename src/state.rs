@@ -314,6 +314,7 @@ pub struct AppState {
     pub active_tab: usize,
     pub font_size: f32,
     pub shell: String,
+    pub sidebar_collapsed: bool,
 }
 
 impl AppState {
@@ -324,7 +325,12 @@ impl AppState {
             active_tab: 0,
             font_size,
             shell,
+            sidebar_collapsed: false,
         }
+    }
+
+    pub fn toggle_sidebar(&mut self) {
+        self.sidebar_collapsed = !self.sidebar_collapsed;
     }
 
     pub fn active_tab(&self) -> Option<&Tab> {

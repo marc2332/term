@@ -12,14 +12,15 @@ impl Component for TabBar {
     fn render(&self) -> impl IntoElement {
         let mut radio = use_radio(AppChannel::Tabs);
 
-        let tabs: Vec<(TabId, String, bool, bool)> = {
+        let (tabs, sidebar_collapsed): (Vec<(usize, TabId, String, bool, bool)>, bool) = {
             let state = radio.read();
-            state
+            let tabs = state
                 .tabs
                 .iter()
                 .enumerate()
-                .map(|(i, t)| (t.id, t.title.clone(), i == state.active_tab, t.outputting))
-                .collect()
+                .map(|(i, t)| (i, t.id, t.title.clone(), i == state.active_tab, t.outputting))
+                .collect();
+            (tabs, state.sidebar_collapsed)
         };
 
         rect()
@@ -37,12 +38,14 @@ impl Component for TabBar {
                     .show_scrollbar(false)
                     .children(
                         tabs.into_iter()
-                            .map(|(tab_id, title, is_active, outputting)| {
+                            .map(|(index, tab_id, title, is_active, outputting)| {
                                 TabButton {
                                     tab_id,
+                                    index,
                                     title,
                                     is_active,
                                     outputting,
+                                    collapsed: sidebar_collapsed,
                                 }
                                 .into_element()
                             })
@@ -57,7 +60,17 @@ impl Component for TabBar {
                                     })
                                     .ripple()
                                     .color((230, 230, 230))
-                                    .child(
+                                    .child(if sidebar_collapsed {
+                                        rect()
+                                            .width(Size::fill())
+                                            .center()
+                                            .child(
+                                                svg(lucide::circle_plus())
+                                                    .width(Size::px(16.))
+                                                    .height(Size::px(16.))
+                                                    .stroke((200, 200, 200)),
+                                            )
+                                    } else {
                                         rect()
                                             .width(Size::fill())
                                             .horizontal()
@@ -69,8 +82,8 @@ impl Component for TabBar {
                                                     .height(Size::px(16.))
                                                     .stroke((200, 200, 200)),
                                             )
-                                            .child(label().text("New Tab").font_size(14.)),
-                                    )
+                                            .child(label().text("New Tab").font_size(14.))
+                                    })
                                     .into_element(),
                             )),
                     ),
@@ -81,9 +94,11 @@ impl Component for TabBar {
 #[derive(PartialEq, Clone)]
 struct TabButton {
     tab_id: TabId,
+    index: usize,
     title: String,
     is_active: bool,
     outputting: bool,
+    collapsed: bool,
 }
 
 impl Component for TabButton {
@@ -109,6 +124,7 @@ impl Component for TabButton {
 
         Button::new()
             .width(Size::fill())
+            .height(Size::px(35.))
             .flat()
             .rounded_lg()
             .background(background)
@@ -119,7 +135,24 @@ impl Component for TabButton {
             })
             .ripple()
             .color((230, 230, 230))
-            .child(
+            .child(if self.collapsed {
+                rect()
+                    .width(Size::fill())
+                    .center()
+                    .child(if outputting {
+                        rect()
+                            .width(Size::px(20.))
+                            .height(Size::px(20.))
+                            .center()
+                            .child(CircularLoader::new().size(14.).primary_color(text_color))
+                            .into_element()
+                    } else {
+                        label()
+                            .text(format!("{}", self.index + 1))
+                            .font_size(14.)
+                            .into_element()
+                    })
+            } else {
                 rect()
                     .width(Size::fill())
                     .horizontal()
@@ -161,8 +194,8 @@ impl Component for TabButton {
                             .center()
                             .child(CircularLoader::new().size(14.).primary_color(text_color))
                             .into_element()
-                    }),
-            )
+                    })
+            })
     }
 
     fn render_key(&self) -> DiffKey {

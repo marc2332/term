@@ -188,6 +188,9 @@ impl Component for App {
                             .write_channel(AppChannel::Tabs)
                             .close_all_except_active();
                     }
+                    Key::Character(ch) if alt && ch.eq_ignore_ascii_case("b") => {
+                        radio.write_channel(AppChannel::Tabs).toggle_sidebar();
+                    }
                     Key::Named(NamedKey::ArrowLeft) if alt => {
                         radio
                             .write_channel(AppChannel::Tabs)
@@ -217,11 +220,29 @@ impl Component for App {
                     _ => {}
                 }
             })
-            .child(
+            .child(if radio.read().sidebar_collapsed {
+                rect()
+                    .expanded()
+                    .horizontal()
+                    .child(
+                        rect()
+                            .width(Size::px(40.))
+                            .height(Size::fill())
+                            .child(TabBar),
+                    )
+                    .child(
+                        rect()
+                            .width(Size::flex(1.))
+                            .height(Size::fill())
+                            .child(TabContent),
+                    )
+                    .into_element()
+            } else {
                 ResizableContainer::new()
                     .direction(Direction::Horizontal)
                     .panel(ResizablePanel::new(PanelSize::px(200.)).child(TabBar))
-                    .panel(ResizablePanel::new(PanelSize::percent(100.)).child(TabContent)),
-            )
+                    .panel(ResizablePanel::new(PanelSize::percent(100.)).child(TabContent))
+                    .into_element()
+            })
     }
 }
