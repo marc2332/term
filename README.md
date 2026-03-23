@@ -62,16 +62,11 @@ cargo install marcterm
 | `Alt+↑` | Focus panel above |
 | `Alt+↓` | Focus panel below |
 
-### Sidebar
-
-| Shortcut | Action |
-|---|---|
-| `Alt+B` | Toggle sidebar (expanded / collapsed) |
-
 ### General
 
 | Shortcut | Action |
 |---|---|
+| `Alt+B` | Toggle sidebar (expanded / collapsed) |
 | `Ctrl++ / Ctrl+=` | Increase font size |
 | `Ctrl+-` | Decrease font size |
 | `Ctrl+Shift+C` | Copy selected text |
