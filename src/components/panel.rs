@@ -61,7 +61,7 @@ impl Component for Panel {
 
                     let is_shortcut = (ctrl_shift && matches!(&e.key, Key::Character(ch) if matches!(ch.to_lowercase().as_str(), "t" | "w")))
                         || (ctrl && matches!(&e.key, Key::Named(NamedKey::Tab)))
-                        || (alt && matches!(&e.key, Key::Character(ch) if ch.eq_ignore_ascii_case("p") || ch == "4" || ch == "1"))
+                        || (alt && matches!(&e.key, Key::Character(ch) if ch.eq_ignore_ascii_case("p") || ch.eq_ignore_ascii_case("b") || ch == "4" || ch == "1"))
                         || (alt && matches!(&e.key, Key::Character(ch) if ch == "+" || ch == "=" || ch == "-"))
                         || (ctrl && matches!(&e.key, Key::Character(ch) if ch == "+" || ch == "=" || ch == "-"))
                         || (alt && matches!(&e.key, Key::Named(NamedKey::ArrowLeft | NamedKey::ArrowRight | NamedKey::ArrowUp | NamedKey::ArrowDown)));

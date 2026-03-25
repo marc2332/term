@@ -12,13 +12,13 @@ name = "marcterm"
 path = "src/main.rs"
 
 [dependencies]
-freya = { version = "0.4.0-rc.15", features = [
+freya = { git = "https://github.com/marc2332/freya", branch = "feat/better-drag-drop", features = [
   "terminal",
   "radio",
   "material-design",
   "icons",
 ] }
-freya-performance-plugin = { version = "0.4.0-rc.15" }
+freya-performance-plugin = { git = "https://github.com/marc2332/freya", branch = "feat/better-drag-drop" }
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 toml = "0.9"

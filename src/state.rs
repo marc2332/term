@@ -280,6 +280,7 @@ impl PanelNode {
 pub struct Tab {
     pub id: TabId,
     pub title: String,
+    pub custom_title: Option<String>,
     pub panels: PanelNode,
     pub active_panel: AccessibilityId,
     pub outputting: bool,
@@ -291,9 +292,17 @@ impl Tab {
         Self {
             id: TabId::new(),
             title: format!("Terminal {}", index + 1),
+            custom_title: None,
             panels: root,
             active_panel,
             outputting: false,
+        }
+    }
+
+    pub fn display_title(&self) -> &str {
+        match &self.custom_title {
+            Some(t) if !t.is_empty() => t,
+            _ => &self.title,
         }
     }
 
@@ -314,6 +323,7 @@ pub struct AppState {
     pub active_tab: usize,
     pub font_size: f32,
     pub shell: String,
+    pub sidebar_collapsed: bool,
 }
 
 impl AppState {
@@ -324,7 +334,12 @@ impl AppState {
             active_tab: 0,
             font_size,
             shell,
+            sidebar_collapsed: false,
         }
+    }
+
+    pub fn toggle_sidebar(&mut self) {
+        self.sidebar_collapsed = !self.sidebar_collapsed;
     }
 
     pub fn active_tab(&self) -> Option<&Tab> {
@@ -377,6 +392,16 @@ impl AppState {
         }
     }
 
+    pub fn rename_tab(&mut self, tab_id: TabId, name: String) {
+        if let Some(tab) = self.tabs.iter_mut().find(|t| t.id == tab_id) {
+            if name.is_empty() {
+                tab.custom_title = None;
+            } else {
+                tab.custom_title = Some(name);
+            }
+        }
+    }
+
     pub fn switch_to_tab(&mut self, tab_id: TabId) {
         if let Some(idx) = self.tabs.iter().position(|t| t.id == tab_id) {
             self.active_tab = idx;
@@ -390,6 +415,31 @@ impl AppState {
         }
         self.active_tab = (self.active_tab + 1) % self.tabs.len();
         self.focus_active_panel();
+    }
+
+    pub fn move_tab(&mut self, from_id: TabId, to_id: TabId) {
+        if from_id == to_id {
+            return;
+        }
+        let Some(from_idx) = self.tabs.iter().position(|t| t.id == from_id) else {
+            return;
+        };
+        let Some(to_idx) = self.tabs.iter().position(|t| t.id == to_id) else {
+            return;
+        };
+        let active_id = self.tabs[self.active_tab].id;
+        if from_idx < to_idx {
+            self.tabs.insert(to_idx + 1, self.tabs[from_idx].clone());
+            self.tabs.remove(from_idx);
+        } else {
+            let tab = self.tabs.remove(from_idx);
+            self.tabs.insert(to_idx, tab);
+        }
+
+        // Keep active_tab pointing at the same tab
+        if let Some(new_active) = self.tabs.iter().position(|t| t.id == active_id) {
+            self.active_tab = new_active;
+        }
     }
 
     pub fn prev_tab(&mut self) {
