@@ -417,6 +417,31 @@ impl AppState {
         self.focus_active_panel();
     }
 
+    pub fn move_tab(&mut self, from_id: TabId, to_id: TabId) {
+        if from_id == to_id {
+            return;
+        }
+        let Some(from_idx) = self.tabs.iter().position(|t| t.id == from_id) else {
+            return;
+        };
+        let Some(to_idx) = self.tabs.iter().position(|t| t.id == to_id) else {
+            return;
+        };
+        let active_id = self.tabs[self.active_tab].id;
+        if from_idx < to_idx {
+            self.tabs.insert(to_idx + 1, self.tabs[from_idx].clone());
+            self.tabs.remove(from_idx);
+        } else {
+            let tab = self.tabs.remove(from_idx);
+            self.tabs.insert(to_idx, tab);
+        }
+
+        // Keep active_tab pointing at the same tab
+        if let Some(new_active) = self.tabs.iter().position(|t| t.id == active_id) {
+            self.active_tab = new_active;
+        }
+    }
+
     pub fn prev_tab(&mut self) {
         if self.tabs.is_empty() {
             return;

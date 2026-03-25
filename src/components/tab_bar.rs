@@ -12,7 +12,7 @@ pub struct TabBar;
 
 impl Component for TabBar {
     fn render(&self) -> impl IntoElement {
-        let radio = use_radio(AppChannel::Tabs);
+        let mut radio = use_radio(AppChannel::Tabs);
 
         let (tabs, sidebar_collapsed): (Vec<TabButton>, bool) = {
             let state = radio.read();
@@ -46,9 +46,49 @@ impl Component for TabBar {
                     .width(Size::fill())
                     .spacing(4.)
                     .show_scrollbar(false)
-                    .children(tabs.into_iter().map(|tab| tab.into_element()).chain(
-                        std::iter::once(new_tab_button(radio, sidebar_collapsed).into_element()),
-                    )),
+                    .children(
+                        tabs.into_iter()
+                            .map(|tab| {
+                                let drop_tab_id = tab.tab_id;
+                                let drag_title = tab.title.clone();
+                                DropZone::new(
+                                    DragZone::new(tab.tab_id, tab)
+                                        .show_while_dragging(false)
+                                        .drag_element(
+                                            rect()
+                                                .width(Size::px(200.))
+                                                .background((45, 45, 45))
+                                                .corner_radius(6.)
+                                                .padding(8.)
+                                                .layer(Layer::Overlay)
+                                                .shadow(
+                                                    Shadow::new()
+                                                        .x(0.)
+                                                        .y(3.)
+                                                        .blur(10.)
+                                                        .spread(1.)
+                                                        .color(Color::from_argb(120, 0, 0, 0)),
+                                                )
+                                                .child(
+                                                    label()
+                                                        .text(drag_title)
+                                                        .font_size(14.)
+                                                        .color((230, 230, 230)),
+                                                ),
+                                        ),
+                                    move |dragged_id: TabId| {
+                                        radio
+                                            .write_channel(AppChannel::Tabs)
+                                            .move_tab(dragged_id, drop_tab_id);
+                                    },
+                                )
+                                .key(drop_tab_id)
+                                .into_element()
+                            })
+                            .chain(std::iter::once(
+                                new_tab_button(radio, sidebar_collapsed).into_element(),
+                            )),
+                    ),
             )
     }
 }
