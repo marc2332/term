@@ -61,6 +61,14 @@ impl Component for TabBar {
                                                 .corner_radius(6.)
                                                 .padding(8.)
                                                 .layer(Layer::Overlay)
+                                                .shadow(
+                                                    Shadow::new()
+                                                        .x(0.)
+                                                        .y(3.)
+                                                        .blur(10.)
+                                                        .spread(1.)
+                                                        .color(Color::from_argb(120, 0, 0, 0)),
+                                                )
                                                 .child(
                                                     label()
                                                         .text(drag_title)

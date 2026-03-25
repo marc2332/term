@@ -428,8 +428,13 @@ impl AppState {
             return;
         };
         let active_id = self.tabs[self.active_tab].id;
-        let tab = self.tabs.remove(from_idx);
-        self.tabs.insert(to_idx, tab);
+        if from_idx < to_idx {
+            self.tabs.insert(to_idx + 1, self.tabs[from_idx].clone());
+            self.tabs.remove(from_idx);
+        } else {
+            let tab = self.tabs.remove(from_idx);
+            self.tabs.insert(to_idx, tab);
+        }
 
         // Keep active_tab pointing at the same tab
         if let Some(new_active) = self.tabs.iter().position(|t| t.id == active_id) {
