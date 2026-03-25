@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
-use std::pin::pin;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
@@ -8,6 +7,7 @@ use async_io::Timer;
 use freya::prelude::*;
 use freya::radio::*;
 use freya::terminal::{TerminalHandle, TerminalId};
+use futures::FutureExt;
 
 use crate::{
     components::{tab_bar::TabBar, tab_content::TabContent},
@@ -25,24 +25,12 @@ async fn watch_handle(
     panel_id: AccessibilityId,
     handle: TerminalHandle,
 ) -> WatchResult {
-    let title = pin!(async {
-        handle.title_changed().await;
-        WatchResult::TitleChanged(tab_id, panel_id, handle.title().unwrap_or_default())
-    });
-    let closed = pin!(async {
-        handle.closed().await;
-        WatchResult::Closed
-    });
-    let output = pin!(async {
-        handle.output_received().await;
-        WatchResult::OutputReceived(tab_id)
-    });
-    match futures::future::select(title, futures::future::select(closed, output)).await {
-        futures::future::Either::Left((result, _)) => result,
-        futures::future::Either::Right((inner, _)) => match inner {
-            futures::future::Either::Left((result, _))
-            | futures::future::Either::Right((result, _)) => result,
-        },
+    futures::select! {
+        _ = handle.title_changed().fuse() => {
+            WatchResult::TitleChanged(tab_id, panel_id, handle.title().unwrap_or_default())
+        }
+        _ = handle.closed().fuse() => WatchResult::Closed,
+        _ = handle.output_received().fuse() => WatchResult::OutputReceived(tab_id),
     }
 }
 
@@ -63,88 +51,90 @@ impl Component for App {
         });
 
         let mut radio = use_radio(AppChannel::Tabs);
-        let watched = use_hook(|| Rc::new(RefCell::new(HashSet::<TerminalId>::new())));
-        let last_output = use_hook(|| Rc::new(RefCell::new(HashMap::<TabId, Instant>::new())));
 
-        use_side_effect(move || {
-            let state = radio.read();
-            for tab in &state.tabs {
-                let tab_id = tab.id;
-                for (panel_id, handle) in tab.panels.all_panels() {
-                    if !watched.borrow().contains(&handle.id()) {
-                        watched.borrow_mut().insert(handle.id());
-                        let watched = watched.clone();
-                        let last_output = last_output.clone();
-                        let handle_id = handle.id();
-                        spawn(async move {
-                            let idle = Duration::from_secs(1);
-                            loop {
-                                match watch_handle(tab_id, panel_id, handle.clone()).await {
-                                    WatchResult::TitleChanged(tab_id, panel_id, title)
-                                        if !title.is_empty() =>
-                                    {
-                                        let mut state = radio.write_channel(AppChannel::Tabs);
-                                        if let Some(tab) =
-                                            state.tabs.iter_mut().find(|t| t.id == tab_id)
+        use_hook(|| {
+            let watched = Rc::new(RefCell::new(HashSet::<TerminalId>::new()));
+            let last_output = Rc::new(RefCell::new(HashMap::<TabId, Instant>::new()));
+
+            Effect::create(move || {
+                let state = radio.read();
+                for tab in &state.tabs {
+                    let tab_id = tab.id;
+                    for (panel_id, handle) in tab.panels.all_panels() {
+                        if !watched.borrow().contains(&handle.id()) {
+                            watched.borrow_mut().insert(handle.id());
+                            let watched = watched.clone();
+                            let last_output = last_output.clone();
+                            let handle_id = handle.id();
+                            spawn(async move {
+                                let idle = Duration::from_secs(1);
+                                loop {
+                                    match watch_handle(tab_id, panel_id, handle.clone()).await {
+                                        WatchResult::TitleChanged(tab_id, panel_id, title)
+                                            if !title.is_empty() =>
                                         {
-                                            if tab.active_panel == panel_id {
+                                            let mut state =
+                                                radio.write_channel(AppChannel::Tabs);
+                                            if let Some(tab) =
+                                                state.tabs.iter_mut().find(|t| t.id == tab_id)
+                                                && tab.active_panel == panel_id
+                                            {
                                                 tab.title = title;
                                             }
                                         }
-                                    }
-                                    WatchResult::OutputReceived(tab_id) => {
-                                        last_output.borrow_mut().insert(tab_id, Instant::now());
-                                        if let Some(tab) = radio
-                                            .write_channel(AppChannel::Tabs)
-                                            .tabs
-                                            .iter_mut()
-                                            .find(|t| t.id == tab_id)
-                                        {
-                                            tab.outputting = true;
-                                        }
-
-                                        // Keep consuming output until idle for 1 second.
-                                        loop {
-                                            let more = pin!(handle.output_received());
-                                            let timeout = pin!(Timer::after(idle));
-                                            match futures::future::select(more, timeout).await {
-                                                futures::future::Either::Left(_) => {
-                                                    last_output
-                                                        .borrow_mut()
-                                                        .insert(tab_id, Instant::now());
-                                                }
-                                                futures::future::Either::Right(_) => break,
-                                            }
-                                        }
-
-                                        // Only clear if no other panel refreshed the timestamp.
-                                        let stale = last_output
-                                            .borrow()
-                                            .get(&tab_id)
-                                            .map(|ts| ts.elapsed() > idle)
-                                            .unwrap_or(true);
-                                        if stale {
+                                        WatchResult::OutputReceived(tab_id) => {
+                                            last_output
+                                                .borrow_mut()
+                                                .insert(tab_id, Instant::now());
                                             if let Some(tab) = radio
                                                 .write_channel(AppChannel::Tabs)
                                                 .tabs
                                                 .iter_mut()
                                                 .find(|t| t.id == tab_id)
                                             {
+                                                tab.outputting = true;
+                                            }
+
+                                            // Keep consuming output until idle for 1 second.
+                                            loop {
+                                                futures::select! {
+                                                    _ = handle.output_received().fuse() => {
+                                                        last_output
+                                                            .borrow_mut()
+                                                            .insert(tab_id, Instant::now());
+                                                    }
+                                                    _ = Timer::after(idle).fuse() => break,
+                                                }
+                                            }
+
+                                            // Only clear if no other panel refreshed the timestamp.
+                                            let stale = last_output
+                                                .borrow()
+                                                .get(&tab_id)
+                                                .map(|ts| ts.elapsed() > idle)
+                                                .unwrap_or(true);
+                                            if stale
+                                                && let Some(tab) = radio
+                                                    .write_channel(AppChannel::Tabs)
+                                                    .tabs
+                                                    .iter_mut()
+                                                    .find(|t| t.id == tab_id)
+                                            {
                                                 tab.outputting = false;
                                             }
                                         }
+                                        WatchResult::Closed => {
+                                            watched.borrow_mut().remove(&handle_id);
+                                            break;
+                                        }
+                                        _ => {}
                                     }
-                                    WatchResult::Closed => {
-                                        watched.borrow_mut().remove(&handle_id);
-                                        break;
-                                    }
-                                    _ => {}
                                 }
-                            }
-                        });
+                            });
+                        }
                     }
                 }
-            }
+            });
         });
 
         rect()
