@@ -57,7 +57,7 @@ impl Component for App {
         let font_size = self.font_size;
         let shell = self.shell.clone();
 
-        use_init_theme(|| DARK_THEME);
+        use_init_root_theme(|| DARK_THEME);
         use_init_radio_station::<AppState, AppChannel>(move || {
             AppState::new(font_size, shell.clone())
         });
