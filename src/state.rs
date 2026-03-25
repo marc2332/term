@@ -280,6 +280,7 @@ impl PanelNode {
 pub struct Tab {
     pub id: TabId,
     pub title: String,
+    pub custom_title: Option<String>,
     pub panels: PanelNode,
     pub active_panel: AccessibilityId,
     pub outputting: bool,
@@ -291,9 +292,17 @@ impl Tab {
         Self {
             id: TabId::new(),
             title: format!("Terminal {}", index + 1),
+            custom_title: None,
             panels: root,
             active_panel,
             outputting: false,
+        }
+    }
+
+    pub fn display_title(&self) -> &str {
+        match &self.custom_title {
+            Some(t) if !t.is_empty() => t,
+            _ => &self.title,
         }
     }
 
@@ -314,6 +323,7 @@ pub struct AppState {
     pub active_tab: usize,
     pub font_size: f32,
     pub shell: String,
+    pub sidebar_collapsed: bool,
 }
 
 impl AppState {
@@ -324,7 +334,12 @@ impl AppState {
             active_tab: 0,
             font_size,
             shell,
+            sidebar_collapsed: false,
         }
+    }
+
+    pub fn toggle_sidebar(&mut self) {
+        self.sidebar_collapsed = !self.sidebar_collapsed;
     }
 
     pub fn active_tab(&self) -> Option<&Tab> {
@@ -374,6 +389,16 @@ impl AppState {
     fn focus_active_panel(&self) {
         if let Some(tab) = self.active_tab() {
             Focus::new_for_id(tab.active_panel).request_focus();
+        }
+    }
+
+    pub fn rename_tab(&mut self, tab_id: TabId, name: String) {
+        if let Some(tab) = self.tabs.iter_mut().find(|t| t.id == tab_id) {
+            if name.is_empty() {
+                tab.custom_title = None;
+            } else {
+                tab.custom_title = Some(name);
+            }
         }
     }
 
