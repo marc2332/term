@@ -73,8 +73,7 @@ impl Component for App {
                                         WatchResult::TitleChanged(tab_id, panel_id, title)
                                             if !title.is_empty() =>
                                         {
-                                            let mut state =
-                                                radio.write_channel(AppChannel::Tabs);
+                                            let mut state = radio.write_channel(AppChannel::Tabs);
                                             if let Some(tab) =
                                                 state.tabs.iter_mut().find(|t| t.id == tab_id)
                                                 && tab.active_panel == panel_id
@@ -83,9 +82,7 @@ impl Component for App {
                                             }
                                         }
                                         WatchResult::OutputReceived(tab_id) => {
-                                            last_output
-                                                .borrow_mut()
-                                                .insert(tab_id, Instant::now());
+                                            last_output.borrow_mut().insert(tab_id, Instant::now());
                                             if let Some(tab) = radio
                                                 .write_channel(AppChannel::Tabs)
                                                 .tabs

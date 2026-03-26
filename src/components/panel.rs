@@ -1,7 +1,7 @@
 use freya::radio::*;
 use freya::{prelude::*, terminal::*};
 
-use crate::state::{AppChannel, TabId};
+use crate::state::{AppChannel, PanelNode, TabId};
 
 #[derive(PartialEq, Clone)]
 pub struct Panel {
@@ -23,24 +23,36 @@ impl Component for Panel {
 
         let mut dimensions = use_state(|| (0.0, 0.0));
 
-        let is_active = radio
-            .read()
-            .tabs
-            .iter()
-            .find(|t| t.id == self.tab_id)
-            .unwrap()
-            .active_panel
-            == panel_id;
+        let (is_active, has_multiple_panels) = {
+            let state = radio.read();
+            let tab = state.tabs.iter().find(|t| t.id == self.tab_id).unwrap();
+            (
+                tab.active_panel == panel_id,
+                !matches!(tab.panels, PanelNode::Leaf(..)),
+            )
+        };
+
         let bg_color: Color = if is_active {
             (10, 10, 10).into()
         } else {
             (15, 15, 15).into()
+        };
+        let border = if has_multiple_panels {
+            let border_color: Color = if is_active {
+                (120, 120, 120).into()
+            } else {
+                (40, 40, 40).into()
+            };
+            Some(Border::new().fill(border_color).width(1.0))
+        } else {
+            None
         };
 
         rect()
             .expanded()
             .padding(8.)
             .background(bg_color)
+            .border(border)
             .a11y_id(focus.a11y_id())
             .a11y_auto_focus(is_active)
             .on_key_up({
