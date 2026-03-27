@@ -18,6 +18,7 @@ enum WatchResult {
     TitleChanged(TabId, AccessibilityId, String),
     Closed,
     OutputReceived(TabId),
+    ClipboardChanged(String),
 }
 
 async fn watch_handle(
@@ -31,6 +32,9 @@ async fn watch_handle(
         }
         _ = handle.closed().fuse() => WatchResult::Closed,
         _ = handle.output_received().fuse() => WatchResult::OutputReceived(tab_id),
+        _ = handle.clipboard_changed().fuse() => {
+            WatchResult::ClipboardChanged(handle.clipboard_content().unwrap_or_default())
+        }
     }
 }
 
@@ -119,6 +123,9 @@ impl Component for App {
                                             {
                                                 tab.outputting = false;
                                             }
+                                        }
+                                        WatchResult::ClipboardChanged(text) => {
+                                            let _ = Clipboard::set(text);
                                         }
                                         WatchResult::Closed => {
                                             watched.borrow_mut().remove(&handle_id);
