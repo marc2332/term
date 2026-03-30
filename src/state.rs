@@ -287,11 +287,12 @@ pub struct Tab {
 }
 
 impl Tab {
-    pub fn new(index: usize, shell: &str, cwd: Option<PathBuf>) -> Self {
+    pub fn new(shell: &str, cwd: Option<PathBuf>) -> Self {
         let (active_panel, root) = PanelNode::new_leaf(shell, cwd);
+        let id = TabId::new();
         Self {
-            id: TabId::new(),
-            title: format!("Terminal {}", index + 1),
+            id,
+            title: format!("Terminal {}", id.0),
             custom_title: None,
             panels: root,
             active_panel,
@@ -328,7 +329,7 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(font_size: f32, shell: String) -> Self {
-        let tab = Tab::new(0, &shell, None);
+        let tab = Tab::new(&shell, None);
         Self {
             tabs: vec![tab],
             active_tab: 0,
@@ -351,12 +352,11 @@ impl AppState {
     }
 
     pub fn new_tab(&mut self) {
-        let index = self.tabs.len();
         let cwd = self
             .active_tab()
             .and_then(|tab| tab.panels.handle(tab.active_panel))
             .and_then(|h| h.cwd());
-        let tab = Tab::new(index, &self.shell.clone(), cwd);
+        let tab = Tab::new(&self.shell.clone(), cwd);
         self.tabs.push(tab);
         self.active_tab = self.tabs.len() - 1;
         self.focus_active_panel();
