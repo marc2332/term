@@ -27,6 +27,9 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="0.1.12" date="2026-04-01">
+      <description><p>Release 0.1.12.</p></description>
+    </release>
     <release version="0.1.11" date="2026-03-26">
       <description><p>Update Freya to 0.4.0-rc.16.</p></description>
     </release>
