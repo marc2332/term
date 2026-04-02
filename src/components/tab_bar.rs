@@ -3,11 +3,11 @@ use freya::material_design::ButtonRippleExt;
 use freya::prelude::*;
 use freya::radio::*;
 
-use crate::state::{AppChannel, AppState, TabId};
+use crate::state::{AppChannel, AppState, TabId, watch_panel};
 
 type AppRadio = Radio<AppState, AppChannel>;
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Copy)]
 pub struct TabBar;
 
 impl Component for TabBar {
@@ -100,7 +100,14 @@ fn new_tab_button(mut radio: AppRadio, collapsed: bool) -> impl IntoElement {
         .rounded_lg()
         .hover_background((45, 45, 45))
         .on_press(move |_| {
-            radio.write_channel(AppChannel::Tabs).new_tab();
+            let mut state = radio.write_channel(AppChannel::Tabs);
+            let (tab_id, panel_id, handle) = state.new_tab();
+            let task = watch_panel(radio, tab_id, panel_id, handle);
+            state
+                .active_tab_mut()
+                .unwrap()
+                .panels
+                .set_task(panel_id, task);
         })
         .ripple()
         .color((230, 230, 230))

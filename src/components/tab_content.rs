@@ -6,7 +6,7 @@ use crate::{
     state::{AppChannel, PanelNode, TabId},
 };
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Copy)]
 pub struct TabContent;
 
 impl Component for TabContent {
@@ -25,7 +25,7 @@ impl Component for TabContent {
 
 fn render_node(node: &PanelNode, font_size: f32, tab_id: &TabId) -> impl IntoElement {
     match node {
-        PanelNode::Leaf(panel_id, handle) => Panel {
+        PanelNode::Leaf(panel_id, handle, _) => Panel {
             panel_id: *panel_id,
             handle: handle.clone(),
             font_size,

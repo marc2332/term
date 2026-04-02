@@ -1,10 +1,27 @@
 use std::path::PathBuf;
+use std::rc::Rc;
+use std::time::{Duration, Instant};
 
-use freya::radio::RadioChannel;
-use freya::{
-    prelude::{AccessibilityId, Focus, UseId},
-    terminal::*,
-};
+use async_io::Timer;
+use freya::prelude::{AccessibilityId, Clipboard, Focus, TaskHandle, UseId, spawn};
+use freya::radio::{Radio, RadioChannel};
+use freya::terminal::*;
+use futures::FutureExt;
+
+#[derive(PartialEq)]
+pub struct PanelTask(TaskHandle);
+
+impl PanelTask {
+    pub fn new(handle: TaskHandle) -> Self {
+        Self(handle)
+    }
+}
+
+impl Drop for PanelTask {
+    fn drop(&mut self) {
+        self.0.cancel();
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TabId(pub usize);
@@ -23,7 +40,7 @@ pub enum Axis {
 
 #[derive(Clone, PartialEq)]
 pub enum PanelNode {
-    Leaf(AccessibilityId, TerminalHandle),
+    Leaf(AccessibilityId, TerminalHandle, Option<Rc<PanelTask>>),
     Horizontal(Box<PanelNode>, Box<PanelNode>),
     Vertical(Box<PanelNode>, Box<PanelNode>),
 }
@@ -62,7 +79,7 @@ fn make_handle(shell: &str, cwd: Option<PathBuf>) -> TerminalHandle {
 impl PanelNode {
     pub fn new_leaf(shell: &str, cwd: Option<PathBuf>) -> (AccessibilityId, Self) {
         let id = Focus::new_id();
-        (id, PanelNode::Leaf(id, make_handle(shell, cwd)))
+        (id, PanelNode::Leaf(id, make_handle(shell, cwd), None))
     }
 
     /// Returns the `PanelId` if this node is a `Leaf`, otherwise `None`.
@@ -74,7 +91,7 @@ impl PanelNode {
         dir: NavDirection,
     ) -> Option<AccessibilityId> {
         match self {
-            PanelNode::Leaf(_, _) => None,
+            PanelNode::Leaf(..) => None,
             PanelNode::Horizontal(a, b) => {
                 let in_a = a.contains(target);
                 let in_b = b.contains(target);
@@ -114,7 +131,7 @@ impl PanelNode {
 
     pub fn contains(&self, id: AccessibilityId) -> bool {
         match self {
-            PanelNode::Leaf(pid, _) => *pid == id,
+            PanelNode::Leaf(pid, ..) => *pid == id,
             PanelNode::Horizontal(a, b) | PanelNode::Vertical(a, b) => {
                 a.contains(id) || b.contains(id)
             }
@@ -123,7 +140,7 @@ impl PanelNode {
 
     pub fn leaves(&self) -> Vec<AccessibilityId> {
         match self {
-            PanelNode::Leaf(id, _) => vec![*id],
+            PanelNode::Leaf(id, ..) => vec![*id],
             PanelNode::Horizontal(a, b) | PanelNode::Vertical(a, b) => {
                 let mut v = a.leaves();
                 v.extend(b.leaves());
@@ -134,8 +151,8 @@ impl PanelNode {
 
     pub fn leaf_fraction(&self, id: AccessibilityId, axis: Axis) -> Option<f64> {
         match self {
-            PanelNode::Leaf(pid, _) if *pid == id => Some(0.0),
-            PanelNode::Leaf(_, _) => None,
+            PanelNode::Leaf(pid, ..) if *pid == id => Some(0.0),
+            PanelNode::Leaf(..) => None,
             PanelNode::Horizontal(a, b) => {
                 if a.contains(id) {
                     a.leaf_fraction(id, axis)
@@ -176,7 +193,7 @@ impl PanelNode {
 
     pub fn leaf_at_fraction(&self, fraction: f64, axis: Axis) -> Option<AccessibilityId> {
         match self {
-            PanelNode::Leaf(id, _) => Some(*id),
+            PanelNode::Leaf(id, ..) => Some(*id),
             PanelNode::Horizontal(a, b) => {
                 if axis == Axis::Horizontal {
                     if fraction < 0.5 {
@@ -202,21 +219,38 @@ impl PanelNode {
         }
     }
 
-    pub fn all_panels(&self) -> Vec<(AccessibilityId, TerminalHandle)> {
+    pub fn leaf_handle(&self) -> Option<&TerminalHandle> {
         match self {
-            PanelNode::Leaf(id, h) => vec![(*id, h.clone())],
+            PanelNode::Leaf(_, h, _) => Some(h),
+            _ => None,
+        }
+    }
+
+    pub fn panel_task(&self, id: AccessibilityId) -> Option<Rc<PanelTask>> {
+        match self {
+            PanelNode::Leaf(pid, _, task) if *pid == id => task.clone(),
+            PanelNode::Leaf(..) => None,
             PanelNode::Horizontal(a, b) | PanelNode::Vertical(a, b) => {
-                let mut v = a.all_panels();
-                v.extend(b.all_panels());
-                v
+                a.panel_task(id).or_else(|| b.panel_task(id))
+            }
+        }
+    }
+
+    pub fn set_task(&mut self, id: AccessibilityId, task: Rc<PanelTask>) {
+        match self {
+            PanelNode::Leaf(pid, _, t) if *pid == id => *t = Some(task),
+            PanelNode::Leaf(..) => {}
+            PanelNode::Horizontal(a, b) | PanelNode::Vertical(a, b) => {
+                a.set_task(id, task.clone());
+                b.set_task(id, task);
             }
         }
     }
 
     pub fn handle(&self, id: AccessibilityId) -> Option<&TerminalHandle> {
         match self {
-            PanelNode::Leaf(pid, h) if *pid == id => Some(h),
-            PanelNode::Leaf(_, _) => None,
+            PanelNode::Leaf(pid, h, _) if *pid == id => Some(h),
+            PanelNode::Leaf(..) => None,
             PanelNode::Horizontal(a, b) | PanelNode::Vertical(a, b) => {
                 a.handle(id).or_else(|| b.handle(id))
             }
@@ -225,8 +259,8 @@ impl PanelNode {
 
     pub fn replace_leaf(self, target: AccessibilityId, replacement: PanelNode) -> PanelNode {
         match self {
-            PanelNode::Leaf(id, _) if id == target => replacement,
-            PanelNode::Leaf(_, _) => self,
+            PanelNode::Leaf(id, ..) if id == target => replacement,
+            PanelNode::Leaf(..) => self,
             PanelNode::Horizontal(a, b) => PanelNode::Horizontal(
                 Box::new(a.replace_leaf(target, replacement.clone())),
                 Box::new(b.replace_leaf(target, replacement)),
@@ -240,17 +274,17 @@ impl PanelNode {
 
     pub fn remove_leaf(self, target: AccessibilityId) -> Option<PanelNode> {
         match self {
-            PanelNode::Leaf(id, _) if id == target => None,
-            PanelNode::Leaf(_, _) => Some(self),
+            PanelNode::Leaf(id, ..) if id == target => None,
+            PanelNode::Leaf(..) => Some(self),
             PanelNode::Horizontal(a, b) => {
                 if a.contains(target) {
-                    if matches!(*a, PanelNode::Leaf(id, _) if id == target) {
+                    if matches!(*a, PanelNode::Leaf(id, ..) if id == target) {
                         return Some(*b);
                     }
                     let new_a = a.remove_leaf(target)?;
                     Some(PanelNode::Horizontal(Box::new(new_a), b))
                 } else {
-                    if matches!(*b, PanelNode::Leaf(id, _) if id == target) {
+                    if matches!(*b, PanelNode::Leaf(id, ..) if id == target) {
                         return Some(*a);
                     }
                     let new_b = b.remove_leaf(target)?;
@@ -259,13 +293,13 @@ impl PanelNode {
             }
             PanelNode::Vertical(a, b) => {
                 if a.contains(target) {
-                    if matches!(*a, PanelNode::Leaf(id, _) if id == target) {
+                    if matches!(*a, PanelNode::Leaf(id, ..) if id == target) {
                         return Some(*b);
                     }
                     let new_a = a.remove_leaf(target)?;
                     Some(PanelNode::Vertical(Box::new(new_a), b))
                 } else {
-                    if matches!(*b, PanelNode::Leaf(id, _) if id == target) {
+                    if matches!(*b, PanelNode::Leaf(id, ..) if id == target) {
                         return Some(*a);
                     }
                     let new_b = b.remove_leaf(target)?;
@@ -284,6 +318,7 @@ pub struct Tab {
     pub panels: PanelNode,
     pub active_panel: AccessibilityId,
     pub outputting: bool,
+    pub last_output: Instant,
 }
 
 impl Tab {
@@ -297,6 +332,7 @@ impl Tab {
             panels: root,
             active_panel,
             outputting: false,
+            last_output: Instant::now(),
         }
     }
 
@@ -329,9 +365,8 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(font_size: f32, shell: String) -> Self {
-        let tab = Tab::new(&shell, None);
         Self {
-            tabs: vec![tab],
+            tabs: vec![],
             active_tab: 0,
             font_size,
             shell,
@@ -351,15 +386,19 @@ impl AppState {
         self.tabs.get_mut(self.active_tab)
     }
 
-    pub fn new_tab(&mut self) {
+    pub fn new_tab(&mut self) -> (TabId, AccessibilityId, TerminalHandle) {
         let cwd = self
             .active_tab()
             .and_then(|tab| tab.panels.handle(tab.active_panel))
             .and_then(|h| h.cwd());
         let tab = Tab::new(&self.shell.clone(), cwd);
+        let tab_id = tab.id;
+        let panel_id = tab.active_panel;
+        let handle = tab.panels.leaf_handle().unwrap().clone();
         self.tabs.push(tab);
         self.active_tab = self.tabs.len() - 1;
         self.focus_active_panel();
+        (tab_id, panel_id, handle)
     }
 
     pub fn close_active_tab(&mut self) {
@@ -453,97 +492,74 @@ impl AppState {
         self.focus_active_panel();
     }
 
-    pub fn split_horizontal(&mut self) {
+    pub fn split_horizontal(&mut self) -> Option<(AccessibilityId, TerminalHandle)> {
         let shell = self.shell.clone();
         let cwd = self
             .active_tab()
             .and_then(|tab| tab.panels.handle(tab.active_panel))
             .and_then(|h| h.cwd());
         let (new_id, new_leaf) = PanelNode::new_leaf(&shell, cwd);
-        if let Some(tab) = self.active_tab_mut() {
-            let split = PanelNode::Horizontal(
-                Box::new(PanelNode::Leaf(
-                    tab.active_panel,
-                    tab.panels.handle(tab.active_panel).cloned().unwrap(),
-                )),
-                Box::new(new_leaf),
-            );
-            tab.panels = tab.panels.clone().replace_leaf(tab.active_panel, split);
-            tab.active_panel = new_id;
-        }
-    }
-
-    pub fn split_vertical(&mut self) {
-        let shell = self.shell.clone();
-        let cwd = self
-            .active_tab()
-            .and_then(|tab| tab.panels.handle(tab.active_panel))
-            .and_then(|h| h.cwd());
-        let (new_id, new_leaf) = PanelNode::new_leaf(&shell, cwd);
-        if let Some(tab) = self.active_tab_mut() {
-            let split = PanelNode::Vertical(
-                Box::new(PanelNode::Leaf(
-                    tab.active_panel,
-                    tab.panels.handle(tab.active_panel).cloned().unwrap(),
-                )),
-                Box::new(new_leaf),
-            );
-            tab.panels = tab.panels.clone().replace_leaf(tab.active_panel, split);
-            tab.active_panel = new_id;
-        }
-    }
-
-    // 4 panels grid
-    pub fn split_into_grid(&mut self) {
-        let shell = self.shell.clone();
-        let cwd = self
-            .active_tab()
-            .and_then(|tab| tab.panels.handle(tab.active_panel))
-            .and_then(|h| h.cwd());
-
-        let (_, new_1) = PanelNode::new_leaf(&shell, cwd.clone());
-        let (_, new_2) = PanelNode::new_leaf(&shell, cwd.clone());
-        let (_, new_3) = PanelNode::new_leaf(&shell, cwd);
-
-        if let Some(tab) = self.active_tab_mut() {
-            let original_leaf = PanelNode::Leaf(
+        let tab = self.active_tab_mut()?;
+        let new_handle = new_leaf.leaf_handle().unwrap().clone();
+        let split = PanelNode::Horizontal(
+            Box::new(PanelNode::Leaf(
                 tab.active_panel,
                 tab.panels.handle(tab.active_panel).cloned().unwrap(),
-            );
-            let grid = PanelNode::Horizontal(
-                Box::new(PanelNode::Vertical(
-                    Box::new(original_leaf),
-                    Box::new(new_1),
-                )),
-                Box::new(PanelNode::Vertical(Box::new(new_2), Box::new(new_3))),
-            );
-            tab.panels = tab.panels.clone().replace_leaf(tab.active_panel, grid);
-            // active_panel stays as the original (top-left) leaf
-        }
+                tab.panels.panel_task(tab.active_panel),
+            )),
+            Box::new(new_leaf),
+        );
+        tab.panels = tab.panels.clone().replace_leaf(tab.active_panel, split);
+        tab.active_panel = new_id;
+        Some((new_id, new_handle))
+    }
+
+    pub fn split_vertical(&mut self) -> Option<(AccessibilityId, TerminalHandle)> {
+        let shell = self.shell.clone();
+        let cwd = self
+            .active_tab()
+            .and_then(|tab| tab.panels.handle(tab.active_panel))
+            .and_then(|h| h.cwd());
+        let (new_id, new_leaf) = PanelNode::new_leaf(&shell, cwd);
+        let tab = self.active_tab_mut()?;
+        let new_handle = new_leaf.leaf_handle().unwrap().clone();
+        let split = PanelNode::Vertical(
+            Box::new(PanelNode::Leaf(
+                tab.active_panel,
+                tab.panels.handle(tab.active_panel).cloned().unwrap(),
+                tab.panels.panel_task(tab.active_panel),
+            )),
+            Box::new(new_leaf),
+        );
+        tab.panels = tab.panels.clone().replace_leaf(tab.active_panel, split);
+        tab.active_panel = new_id;
+        Some((new_id, new_handle))
     }
 
     /// Collapses the current tab to only its active panel, closing all others.
     pub fn close_all_except_active(&mut self) {
         if let Some(tab) = self.active_tab_mut() {
             let active_id = tab.active_panel;
-            let active_leaf =
-                PanelNode::Leaf(active_id, tab.panels.handle(active_id).cloned().unwrap());
+            let active_leaf = PanelNode::Leaf(
+                active_id,
+                tab.panels.handle(active_id).cloned().unwrap(),
+                tab.panels.panel_task(active_id),
+            );
             tab.panels = active_leaf;
-            // active_panel stays the same
             Focus::new_for_id(active_id).request_focus();
         }
     }
 
     pub fn close_active_panel(&mut self) {
-        if let Some(tab) = self.active_tab_mut()
-            && let Some(new_root) = tab.panels.clone().remove_leaf(tab.active_panel)
-        {
-            let leaves = new_root.leaves();
-            tab.panels = new_root;
-            if let Some(panel) = leaves.into_iter().last() {
-                tab.active_panel = panel;
-                tab.update_title_from_active_panel();
-                Focus::new_for_id(panel).request_focus();
+        if let Some(tab) = self.active_tab_mut() {
+            if let Some(new_root) = tab.panels.clone().remove_leaf(tab.active_panel) {
+                let leaves = new_root.leaves();
+                tab.panels = new_root;
+                if let Some(panel) = leaves.into_iter().last() {
+                    tab.active_panel = panel;
+                    tab.update_title_from_active_panel();
+                    Focus::new_for_id(panel).request_focus();
+                }
             }
         }
     }
@@ -581,3 +597,66 @@ pub enum AppChannel {
 }
 
 impl RadioChannel<AppState> for AppChannel {}
+
+pub fn watch_panel(
+    mut radio: Radio<AppState, AppChannel>,
+    tab_id: TabId,
+    panel_id: AccessibilityId,
+    handle: TerminalHandle,
+) -> Rc<PanelTask> {
+    let task = spawn(async move {
+        let idle = Duration::from_secs(1);
+        loop {
+            futures::select! {
+                _ = handle.title_changed().fuse() => {
+                    let title = handle.title().unwrap_or_default();
+                    if !title.is_empty() {
+                        let mut state = radio.write_channel(AppChannel::Tabs);
+                        if let Some(tab) =
+                            state.tabs.iter_mut().find(|t| t.id == tab_id)
+                            && tab.active_panel == panel_id
+                        {
+                            tab.title = title;
+                        }
+                    }
+                }
+                _ = handle.output_received().fuse() => {
+                    {
+                        let mut state = radio.write_channel(AppChannel::Tabs);
+                        if let Some(tab) = state.tabs.iter_mut().find(|t| t.id == tab_id) {
+                            tab.last_output = Instant::now();
+                            tab.outputting = true;
+                        }
+                    }
+
+                    // Keep consuming output until idle for 1 second.
+                    loop {
+                        futures::select! {
+                            _ = handle.output_received().fuse() => {
+                                let mut state = radio.write_channel(AppChannel::Tabs);
+                                if let Some(tab) = state.tabs.iter_mut().find(|t| t.id == tab_id) {
+                                    tab.last_output = Instant::now();
+                                }
+                            }
+                            _ = Timer::after(idle).fuse() => break,
+                        }
+                    }
+
+                    // Only clear if no other panel refreshed the timestamp.
+                    let mut state = radio.write_channel(AppChannel::Tabs);
+                    if let Some(tab) = state.tabs.iter_mut().find(|t| t.id == tab_id)
+                        && tab.last_output.elapsed() > idle
+                    {
+                        tab.outputting = false;
+                    }
+                }
+                _ = handle.clipboard_changed().fuse() => {
+                    let text = handle.clipboard_content().unwrap_or_default();
+                    let _ = Clipboard::set(text);
+                }
+                _ = handle.closed().fuse() => break,
+            }
+        }
+    });
+    Rc::new(PanelTask::new(task))
+}
