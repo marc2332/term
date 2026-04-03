@@ -27,7 +27,7 @@
     </screenshot>
   </screenshots>
   <releases>
-    <release version="0.1.13" date="2026-04-02">
+    <release version="0.1.14" date="2026-04-02">
       <description><p>Fix PTY processes not being cleaned up when closing tabs or panels.</p></description>
     </release>
     <release version="0.1.12" date="2026-04-01">
