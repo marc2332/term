@@ -15,11 +15,11 @@
           libGL
           libxkbcommon
           wayland
-          xorg.libX11
-          xorg.libXcursor
-          xorg.libXrandr
-          xorg.libXi
-          xorg.libxcb
+          libx11
+          libxcursor
+          libxrandr
+          libxi
+          libxcb
           fontconfig
           freetype
           stdenv.cc.cc.lib
