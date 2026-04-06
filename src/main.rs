@@ -56,6 +56,7 @@ fn main() {
             shell: config.shell.clone(),
         })
         .with_title("marcterm")
+        .with_app_id("io.marc.term")
         .with_size(1024., 768.)
         .with_icon(LaunchConfig::window_icon(include_bytes!("../icon.png"))),
     );

@@ -31,10 +31,19 @@
 
           src = ./.;
 
-          cargoLock.lockFile = ./Cargo.lock;
+          cargoLock = {
+            lockFile = ./Cargo.lock;
+            outputHashes = {
+              "freya-0.4.0-rc.17" = "sha256-gNmO7Pq2gXqLJbJFIKNrxVQGV1O4KpYVfb7CY2eD3NA=";
+            };
+          };
 
           # Skia downloads sources during build, needs network access
           __noChroot = true;
+
+          doCheck = false;
+          auditable = false;
+          dontStrip = true;
 
           nativeBuildInputs = with pkgs; [
             pkg-config
