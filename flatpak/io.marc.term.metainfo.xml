@@ -27,6 +27,9 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="0.1.16" date="2026-04-06">
+      <description><p>Nix flake cleanup.</p></description>
+    </release>
     <release version="0.1.15" date="2026-04-06">
       <description><p>Nix support.</p></description>
     </release>

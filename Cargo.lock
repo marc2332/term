@@ -2342,7 +2342,7 @@ dependencies = [
 
 [[package]]
 name = "marcterm"
-version = "0.1.15"
+version = "0.1.16"
 dependencies = [
  "async-io",
  "clap",
