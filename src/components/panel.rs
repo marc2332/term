@@ -21,7 +21,9 @@ impl Component for Panel {
         let mut radio = use_radio(AppChannel::Tabs);
         let focus = Focus::new_for_id(self.panel_id);
 
-        let mut dimensions = use_state(|| (0.0, 0.0));
+        let mut dimensions = use_state(Size2D::zero);
+        let mut terminal_size = use_state(Size2D::zero);
+        let mut is_pressed = use_state(|| false);
 
         let (is_active, has_multiple_panels) = {
             let state = radio.read();
@@ -113,40 +115,68 @@ impl Component for Panel {
                 .background(bg_color)
                     .font_size(font_size)
                     .on_measured(move |(char_width, line_height)| {
-                        dimensions.set((char_width, line_height));
+                        dimensions.set(Size2D::new(char_width, line_height));
+                    })
+                    .on_sized(move |e: Event<SizedEventData>| {
+                        terminal_size.set(e.area.size);
                     })
                     .on_mouse_down({
                         let handle = handle.clone();
                         move |e: Event<MouseEventData>| {
                             focus.request_focus();
                             radio.write_channel(AppChannel::Tabs).tabs.iter_mut().find(|t| t.id == tab_id).unwrap().active_panel = panel_id;
-                            let (char_width, line_height) = *dimensions.read();
-                            let col = (e.element_location.x / char_width as f64).floor() as usize;
-                            let row = (e.element_location.y / line_height as f64).floor() as usize;
+                            let cell = *dimensions.read();
+                            let col = (e.element_location.x / cell.width as f64).floor() as usize;
+                            let row = (e.element_location.y / cell.height as f64).floor() as usize;
                             let button = match e.button {
                                 Some(MouseButton::Middle) => TerminalMouseButton::Middle,
                                 Some(MouseButton::Right) => TerminalMouseButton::Right,
                                 _ => TerminalMouseButton::Left,
                             };
+                            is_pressed.set(true);
                             handle.mouse_down(row, col, button);
                         }
                     })
-                    .on_mouse_move({
+                    .on_global_pointer_move({
                         let handle = handle.clone();
-                        move |e: Event<MouseEventData>| {
-                            let (char_width, line_height) = *dimensions.read();
-                            let col = (e.element_location.x / char_width as f64).floor() as usize;
-                            let row = (e.element_location.y / line_height as f64).floor() as usize;
+                        move |e: Event<PointerEventData>| {
+                            let pressed = *is_pressed.read();
+                            let cell = *dimensions.read();
+                            if cell.width <= 0.0 || cell.height <= 0.0 {
+                                return;
+                            }
+                            let area = *terminal_size.read();
+                            let (ex, ey) = e.element_location().to_tuple();
+                            let inside = ex >= 0.0 && ey >= 0.0 && ex < area.width as f64 && ey < area.height as f64;
+                            if !pressed && !inside {
+                                return;
+                            }
+                            let x = ex.clamp(0.0, (area.width - cell.width).max(0.0) as f64);
+                            let y = ey.clamp(0.0, (area.height - cell.height).max(0.0) as f64);
+                            let col = (x / cell.width as f64).floor() as usize;
+                            let row = (y / cell.height as f64).floor() as usize;
                             handle.mouse_move(row, col);
                         }
                     })
-                    .on_mouse_up({
+                    .on_global_pointer_press({
                         let handle = handle.clone();
-                        move |e: Event<MouseEventData>| {
-                            let (char_width, line_height) = *dimensions.read();
-                            let col = (e.element_location.x / char_width as f64).floor() as usize;
-                            let row = (e.element_location.y / line_height as f64).floor() as usize;
-                            let button = match e.button {
+                        move |e: Event<PointerEventData>| {
+                            if !*is_pressed.read() {
+                                return;
+                            }
+                            is_pressed.set(false);
+                            let cell = *dimensions.read();
+                            if cell.width <= 0.0 || cell.height <= 0.0 {
+                                handle.release();
+                                return;
+                            }
+                            let area = *terminal_size.read();
+                            let (ex, ey) = e.element_location().to_tuple();
+                            let x = ex.clamp(0.0, (area.width - cell.width).max(0.0) as f64);
+                            let y = ey.clamp(0.0, (area.height - cell.height).max(0.0) as f64);
+                            let col = (x / cell.width as f64).floor() as usize;
+                            let row = (y / cell.height as f64).floor() as usize;
+                            let button = match e.button() {
                                 Some(MouseButton::Middle) => TerminalMouseButton::Middle,
                                 Some(MouseButton::Right) => TerminalMouseButton::Right,
                                 _ => TerminalMouseButton::Left,
@@ -157,10 +187,10 @@ impl Component for Panel {
                     .on_wheel({
                         let handle = handle.clone();
                         move |e: Event<WheelEventData>| {
-                            let (char_width, line_height) = *dimensions.read();
+                            let cell = *dimensions.read();
                             let (mouse_x, mouse_y) = e.element_location.to_tuple();
-                            let col = (mouse_x / char_width as f64).floor() as usize;
-                            let row = (mouse_y / line_height as f64).floor() as usize;
+                            let col = (mouse_x / cell.width as f64).floor() as usize;
+                            let row = (mouse_y / cell.height as f64).floor() as usize;
                             handle.wheel(e.delta_y, row, col);
                         }
                     }),
