@@ -287,14 +287,18 @@ impl Component for TabButton {
             .ripple()
             .color((230, 230, 230))
             .child(if self.collapsed {
-                rect().width(Size::fill()).center().child(if outputting {
-                    loading_indicator(text_color)
-                } else {
-                    label()
-                        .text(format!("{}", self.index + 1))
-                        .font_size(14.)
-                        .into_element()
-                })
+                rect()
+                    .width(Size::fill())
+                    .height(Size::fill())
+                    .center()
+                    .child(if outputting {
+                        loading_indicator(text_color)
+                    } else {
+                        label()
+                            .text(format!("{}", self.index + 1))
+                            .font_size(14.)
+                            .into_element()
+                    })
             } else {
                 rect()
                     .width(Size::fill())
@@ -311,18 +315,31 @@ impl Component for TabButton {
                         move |_| {
                             let custom_title = custom_title.clone();
                             ContextMenu::open(
-                                Menu::new().child(
-                                    MenuButton::new()
-                                        .on_press(move |e: Event<PressEventData>| {
-                                            e.stop_propagation();
-                                            e.prevent_default();
-                                            ContextMenu::close();
-                                            was_focused.set(false);
-                                            rename_value.set(custom_title.clone());
-                                            editing.set(true);
-                                        })
-                                        .child("Rename"),
-                                ),
+                                Menu::new()
+                                    .child(
+                                        MenuButton::new()
+                                            .on_press(move |e: Event<PressEventData>| {
+                                                e.stop_propagation();
+                                                e.prevent_default();
+                                                ContextMenu::close();
+                                                was_focused.set(false);
+                                                rename_value.set(custom_title.clone());
+                                                editing.set(true);
+                                            })
+                                            .child("Rename"),
+                                    )
+                                    .child(
+                                        MenuButton::new()
+                                            .on_press(move |e: Event<PressEventData>| {
+                                                e.stop_propagation();
+                                                e.prevent_default();
+                                                ContextMenu::close();
+                                                radio
+                                                    .write_channel(AppChannel::Tabs)
+                                                    .close_tab_by_id(tab_id);
+                                            })
+                                            .child("Close"),
+                                    ),
                             );
                         }
                     })
