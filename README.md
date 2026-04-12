@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="icon.png" alt="term logo" width="128" />
+  <img src="icon.png" alt="marcterm logo" width="128" />
 </p>
 
-<h1 align="center">term 🖥️</h1>
+<h1 align="center">marcterm 🖥️</h1>
 
 <p align="center">
   Terminal emulator built with <a href="https://github.com/marc2332/freya">Freya</a> and Rust 🦀
@@ -10,7 +10,7 @@
 
 ---
 
-![term screenshot](demo.png)
+![marcterm screenshot](demo.png)
 
 ---
 
@@ -74,7 +74,7 @@ cargo install marcterm
 
 ## ⚙️ Configuration
 
-term reads its config from `~/.config/marcterm.toml`.
+marcterm reads its config from `~/.config/marcterm.toml`.
 
 ```toml
 # Shell binary to launch.
