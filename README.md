@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="icon.png" alt="marcterm logo" width="128" />
+  <img src="icon.png" alt="term logo" width="128" />
 </p>
 
-<h1 align="center">marcterm 🖥️</h1>
+<h1 align="center">term 🖥️</h1>
 
 <p align="center">
   Terminal emulator built with <a href="https://github.com/marc2332/freya">Freya</a> and Rust 🦀
@@ -10,7 +10,7 @@
 
 ---
 
-![marcterm screenshot](demo.png)
+![term screenshot](demo.png)
 
 ---
 
@@ -20,8 +20,8 @@
 
 ```sh
 flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-flatpak remote-add --if-not-exists --no-gpg-verify --user marcterm https://marc2332.github.io/marcterm
-flatpak install --user marcterm io.marc.term
+flatpak remote-add --if-not-exists --no-gpg-verify --user term https://marc2332.github.io/term
+flatpak install --user term io.marc.term
 ```
 
 ### Cargo
@@ -74,7 +74,7 @@ cargo install marcterm
 
 ## ⚙️ Configuration
 
-marcterm reads its config from `~/.config/marcterm.toml`.
+term reads its config from `~/.config/marcterm.toml`.
 
 ```toml
 # Shell binary to launch.
