@@ -20,7 +20,7 @@
 
 ```sh
 flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-flatpak remote-add --if-not-exists --no-gpg-verify --user marcterm https://marc2332.github.io/marcterm
+flatpak remote-add --if-not-exists --no-gpg-verify --user marcterm https://marc2332.github.io/term
 flatpak install --user marcterm io.marc.term
 ```
 
