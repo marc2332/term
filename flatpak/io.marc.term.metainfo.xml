@@ -27,7 +27,7 @@
     </screenshot>
   </screenshots>
   <releases>
-    <release version="0.2.0" date="2026-04-06">
+    <release version="0.3.1" date="2026-04-06">
       <description><p>Nix flake cleanup.</p></description>
     </release>
     <release version="0.1.15" date="2026-04-06">
