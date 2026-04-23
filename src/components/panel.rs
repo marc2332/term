@@ -73,7 +73,7 @@ impl Component for Panel {
 
                     let is_shortcut = (ctrl_shift && matches!(&e.key, Key::Character(ch) if matches!(ch.to_lowercase().as_str(), "t" | "w")))
                         || (ctrl && matches!(&e.key, Key::Named(NamedKey::Tab)))
-                        || (alt && matches!(&e.key, Key::Character(ch) if ch.eq_ignore_ascii_case("p") || ch.eq_ignore_ascii_case("b") || ch == "4" || ch == "1"))
+                        || (alt && matches!(&e.key, Key::Character(ch) if ch.eq_ignore_ascii_case("p") || ch.eq_ignore_ascii_case("b") || ch == "1"))
                         || (alt && matches!(&e.key, Key::Character(ch) if ch == "+" || ch == "=" || ch == "-"))
                         || (ctrl && matches!(&e.key, Key::Character(ch) if ch == "+" || ch == "=" || ch == "-"))
                         || (alt && matches!(&e.key, Key::Named(NamedKey::ArrowLeft | NamedKey::ArrowRight | NamedKey::ArrowUp | NamedKey::ArrowDown)));
@@ -121,22 +121,28 @@ impl Component for Panel {
                             focus.request_focus();
                             radio.write_channel(AppChannel::Tabs).tabs.iter_mut().find(|t| t.id == tab_id).unwrap().active_panel = panel_id;
                             let (char_width, line_height) = *dimensions.read();
-                            let col = (e.element_location.x / char_width as f64).floor() as usize;
-                            let row = (e.element_location.y / line_height as f64).floor() as usize;
+                            let col = (e.element_location.x / char_width as f64).floor() as f32;
+                            let row = (e.element_location.y / line_height as f64).floor() as f32;
                             let button = match e.button {
                                 Some(MouseButton::Middle) => TerminalMouseButton::Middle,
                                 Some(MouseButton::Right) => TerminalMouseButton::Right,
                                 _ => TerminalMouseButton::Left,
                             };
-                            handle.mouse_down(row, col, button);
+                            let selection_type = match EventsCombos::pressed(e.element_location)
+                            {
+                                PressEventType::Double => SelectionType::Semantic,
+                                PressEventType::Triple => SelectionType::Lines,
+                                _ => SelectionType::Simple,
+                            };
+                            handle.mouse_down(row, col, button, selection_type);
                         }
                     })
                     .on_mouse_move({
                         let handle = handle.clone();
                         move |e: Event<MouseEventData>| {
                             let (char_width, line_height) = *dimensions.read();
-                            let col = (e.element_location.x / char_width as f64).floor() as usize;
-                            let row = (e.element_location.y / line_height as f64).floor() as usize;
+                            let col = (e.element_location.x / char_width as f64).floor() as f32;
+                            let row = (e.element_location.y / line_height as f64).floor() as f32;
                             handle.mouse_move(row, col);
                         }
                     })
@@ -144,8 +150,8 @@ impl Component for Panel {
                         let handle = handle.clone();
                         move |e: Event<MouseEventData>| {
                             let (char_width, line_height) = *dimensions.read();
-                            let col = (e.element_location.x / char_width as f64).floor() as usize;
-                            let row = (e.element_location.y / line_height as f64).floor() as usize;
+                            let col = (e.element_location.x / char_width as f64).floor() as f32;
+                            let row = (e.element_location.y / line_height as f64).floor() as f32;
                             let button = match e.button {
                                 Some(MouseButton::Middle) => TerminalMouseButton::Middle,
                                 Some(MouseButton::Right) => TerminalMouseButton::Right,
@@ -159,8 +165,8 @@ impl Component for Panel {
                         move |e: Event<WheelEventData>| {
                             let (char_width, line_height) = *dimensions.read();
                             let (mouse_x, mouse_y) = e.element_location.to_tuple();
-                            let col = (mouse_x / char_width as f64).floor() as usize;
-                            let row = (mouse_y / line_height as f64).floor() as usize;
+                            let col = (mouse_x / char_width as f64).floor() as f32;
+                            let row = (mouse_y / line_height as f64).floor() as f32;
                             handle.wheel(e.delta_y, row, col);
                         }
                     }),

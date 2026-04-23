@@ -1,42 +1,10 @@
-use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
-use std::rc::Rc;
-use std::time::{Duration, Instant};
-
-use async_io::Timer;
 use freya::prelude::*;
 use freya::radio::*;
-use freya::terminal::{TerminalHandle, TerminalId};
-use futures::FutureExt;
 
 use crate::{
     components::{tab_bar::TabBar, tab_content::TabContent},
-    state::{AppChannel, AppState, NavDirection, TabId},
+    state::{AppChannel, AppState, NavDirection, watch_panel},
 };
-
-enum WatchResult {
-    TitleChanged(TabId, AccessibilityId, String),
-    Closed,
-    OutputReceived(TabId),
-    ClipboardChanged(String),
-}
-
-async fn watch_handle(
-    tab_id: TabId,
-    panel_id: AccessibilityId,
-    handle: TerminalHandle,
-) -> WatchResult {
-    futures::select! {
-        _ = handle.title_changed().fuse() => {
-            WatchResult::TitleChanged(tab_id, panel_id, handle.title().unwrap_or_default())
-        }
-        _ = handle.closed().fuse() => WatchResult::Closed,
-        _ = handle.output_received().fuse() => WatchResult::OutputReceived(tab_id),
-        _ = handle.clipboard_changed().fuse() => {
-            WatchResult::ClipboardChanged(handle.clipboard_content().unwrap_or_default())
-        }
-    }
-}
 
 #[derive(PartialEq, Clone)]
 pub struct App {
@@ -56,89 +24,16 @@ impl Component for App {
 
         let mut radio = use_radio(AppChannel::Tabs);
 
+        // Create and watch the initial tab (runs once).
         use_hook(|| {
-            let watched = Rc::new(RefCell::new(HashSet::<TerminalId>::new()));
-            let last_output = Rc::new(RefCell::new(HashMap::<TabId, Instant>::new()));
-
-            Effect::create(move || {
-                let state = radio.read();
-                for tab in &state.tabs {
-                    let tab_id = tab.id;
-                    for (panel_id, handle) in tab.panels.all_panels() {
-                        if !watched.borrow().contains(&handle.id()) {
-                            watched.borrow_mut().insert(handle.id());
-                            let watched = watched.clone();
-                            let last_output = last_output.clone();
-                            let handle_id = handle.id();
-                            spawn(async move {
-                                let idle = Duration::from_secs(1);
-                                loop {
-                                    match watch_handle(tab_id, panel_id, handle.clone()).await {
-                                        WatchResult::TitleChanged(tab_id, panel_id, title)
-                                            if !title.is_empty() =>
-                                        {
-                                            let mut state = radio.write_channel(AppChannel::Tabs);
-                                            if let Some(tab) =
-                                                state.tabs.iter_mut().find(|t| t.id == tab_id)
-                                                && tab.active_panel == panel_id
-                                            {
-                                                tab.title = title;
-                                            }
-                                        }
-                                        WatchResult::OutputReceived(tab_id) => {
-                                            last_output.borrow_mut().insert(tab_id, Instant::now());
-                                            if let Some(tab) = radio
-                                                .write_channel(AppChannel::Tabs)
-                                                .tabs
-                                                .iter_mut()
-                                                .find(|t| t.id == tab_id)
-                                            {
-                                                tab.outputting = true;
-                                            }
-
-                                            // Keep consuming output until idle for 1 second.
-                                            loop {
-                                                futures::select! {
-                                                    _ = handle.output_received().fuse() => {
-                                                        last_output
-                                                            .borrow_mut()
-                                                            .insert(tab_id, Instant::now());
-                                                    }
-                                                    _ = Timer::after(idle).fuse() => break,
-                                                }
-                                            }
-
-                                            // Only clear if no other panel refreshed the timestamp.
-                                            let stale = last_output
-                                                .borrow()
-                                                .get(&tab_id)
-                                                .map(|ts| ts.elapsed() > idle)
-                                                .unwrap_or(true);
-                                            if stale
-                                                && let Some(tab) = radio
-                                                    .write_channel(AppChannel::Tabs)
-                                                    .tabs
-                                                    .iter_mut()
-                                                    .find(|t| t.id == tab_id)
-                                            {
-                                                tab.outputting = false;
-                                            }
-                                        }
-                                        WatchResult::ClipboardChanged(text) => {
-                                            let _ = Clipboard::set(text);
-                                        }
-                                        WatchResult::Closed => {
-                                            watched.borrow_mut().remove(&handle_id);
-                                            break;
-                                        }
-                                        _ => {}
-                                    }
-                                }
-                            });
-                        }
-                    }
-                }
-            });
+            let mut state = radio.write_channel(AppChannel::Tabs);
+            let (tab_id, panel_id, handle) = state.new_tab();
+            let task = watch_panel(radio, tab_id, panel_id, handle);
+            state
+                .active_tab_mut()
+                .unwrap()
+                .panels
+                .set_task(panel_id, task);
         });
 
         rect()
@@ -154,7 +49,14 @@ impl Component for App {
 
                 match &e.key {
                     Key::Character(ch) if ctrl_shift && ch.eq_ignore_ascii_case("t") => {
-                        radio.write_channel(AppChannel::Tabs).new_tab();
+                        let mut state = radio.write_channel(AppChannel::Tabs);
+                        let (tab_id, panel_id, handle) = state.new_tab();
+                        let task = watch_panel(radio, tab_id, panel_id, handle);
+                        state
+                            .active_tab_mut()
+                            .unwrap()
+                            .panels
+                            .set_task(panel_id, task);
                     }
                     Key::Character(ch) if ctrl_shift && ch.eq_ignore_ascii_case("w") => {
                         radio.write_channel(AppChannel::Tabs).close_active_tab();
@@ -166,16 +68,31 @@ impl Component for App {
                         radio.write_channel(AppChannel::Tabs).prev_tab();
                     }
                     Key::Character(ch) if alt && ch.eq_ignore_ascii_case("p") => {
-                        radio.write_channel(AppChannel::Tabs).split_vertical();
+                        let mut state = radio.write_channel(AppChannel::Tabs);
+                        if let Some((panel_id, handle)) = state.split_vertical() {
+                            let tab_id = state.active_tab().unwrap().id;
+                            let task = watch_panel(radio, tab_id, panel_id, handle);
+                            state
+                                .active_tab_mut()
+                                .unwrap()
+                                .panels
+                                .set_task(panel_id, task);
+                        }
                     }
                     Key::Character(ch) if alt && (ch == "+" || ch == "=") => {
-                        radio.write_channel(AppChannel::Tabs).split_horizontal();
+                        let mut state = radio.write_channel(AppChannel::Tabs);
+                        if let Some((panel_id, handle)) = state.split_horizontal() {
+                            let tab_id = state.active_tab().unwrap().id;
+                            let task = watch_panel(radio, tab_id, panel_id, handle);
+                            state
+                                .active_tab_mut()
+                                .unwrap()
+                                .panels
+                                .set_task(panel_id, task);
+                        }
                     }
                     Key::Character(ch) if alt && ch == "-" => {
                         radio.write_channel(AppChannel::Tabs).close_active_panel();
-                    }
-                    Key::Character(ch) if alt && ch == "4" => {
-                        radio.write_channel(AppChannel::Tabs).split_into_grid();
                     }
                     Key::Character(ch) if alt && ch == "1" => {
                         radio

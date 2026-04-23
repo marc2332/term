@@ -50,12 +50,13 @@ fn main() {
     let cli = Cli::parse();
     let config = Config::load();
 
-    let mut launch_config = LaunchConfig::new().with_window(
+    let mut launch_config = LaunchConfig::new().with_fallback_font("Inter").with_window(
         WindowConfig::new(move || App {
             font_size: config.font_size,
             shell: config.shell.clone(),
         })
         .with_title("marcterm")
+        .with_app_id("io.marc.term")
         .with_size(1024., 768.)
         .with_icon(LaunchConfig::window_icon(include_bytes!("../icon.png"))),
     );
