@@ -299,7 +299,7 @@ impl Component for TabButton {
                     .main_align(Alignment::SpaceBetween)
                     .on_pointer_over(move |_| hovered.set(true))
                     .on_pointer_out(move |_| hovered.set(false))
-                    .on_secondary_press({
+                    .on_secondary_down({
                         let custom_title = custom_title.clone();
                         move |_| {
                             let custom_title = custom_title.clone();
