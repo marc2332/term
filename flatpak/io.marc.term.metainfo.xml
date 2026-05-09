@@ -27,6 +27,9 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="0.3.2" date="2026-05-09">
+      <description><p>Clickable URLs in the terminal and context menu support.</p></description>
+    </release>
     <release version="0.3.1" date="2026-04-06">
       <description><p>Nix flake cleanup.</p></description>
     </release>
