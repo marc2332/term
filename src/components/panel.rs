@@ -103,6 +103,12 @@ impl Component for Panel {
                                 let _ = handle.paste(&text);
                             }
                         }
+                        Key::Named(NamedKey::Home) => {
+                            handle.scroll(i32::MAX);
+                        }
+                        Key::Named(NamedKey::End) => {
+                            handle.scroll_to_bottom();
+                        }
                         _ => {
                             let _ = handle.write_key(&e.key, e.modifiers);
                         }

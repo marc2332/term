@@ -27,6 +27,9 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="0.3.3" date="2026-05-10">
+      <description><p>Home and End keys scroll to top and bottom of scrollback.</p></description>
+    </release>
     <release version="0.3.2" date="2026-05-09">
       <description><p>Clickable URLs in the terminal and context menu support.</p></description>
     </release>
