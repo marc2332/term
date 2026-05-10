@@ -105,9 +105,16 @@ impl Component for Panel {
                         }
                         Key::Named(NamedKey::Home) => {
                             handle.scroll(i32::MAX);
+                            if handle.term().grid().display_offset() == 0 {
+                                let _ = handle.write(b"\x1b[H");
+                            }
                         }
                         Key::Named(NamedKey::End) => {
-                            handle.scroll_to_bottom();
+                            if handle.term().grid().display_offset() == 0 {
+                                let _ = handle.write(b"\x1b[F");
+                            } else {
+                                handle.scroll_to_bottom();
+                            }
                         }
                         _ => {
                             let _ = handle.write_key(&e.key, e.modifiers);
