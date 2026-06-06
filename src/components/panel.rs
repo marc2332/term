@@ -19,7 +19,6 @@ impl Component for Panel {
         let handle = self.handle.clone();
 
         let mut radio = use_radio(AppChannel::Tabs);
-        let focus = Focus::new_for_id(self.panel_id);
 
         let mut cell_size = use_state(Size2D::zero);
         let mut terminal_area = use_state(Area::zero);
@@ -81,7 +80,7 @@ impl Component for Panel {
             .padding(8.)
             .background(bg_color)
             .border(border)
-            .a11y_id(focus.a11y_id())
+            .a11y_id(panel_id)
             .a11y_auto_focus(is_active)
             .on_key_up({
                 let handle = handle.clone();
@@ -158,7 +157,7 @@ impl Component for Panel {
                     .on_mouse_down({
                         let handle = handle.clone();
                         move |event: Event<MouseEventData>| {
-                            focus.request_focus();
+                            panel_id.request_focus();
                             radio.write_channel(AppChannel::Tabs).tabs.iter_mut()
                                 .find(|tab| tab.id == tab_id).unwrap().active_panel = panel_id;
                             if let Some((row, col)) = to_cell(event.global_location) {

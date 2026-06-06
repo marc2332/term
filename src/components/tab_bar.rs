@@ -180,7 +180,7 @@ fn rename_input(
         .auto_focus(true)
         .a11y_id(input_a11y_id)
         .background(Color::TRANSPARENT)
-        .hover_background(Color::TRANSPARENT)
+        .focus_background(Color::TRANSPARENT)
         .border_fill(Color::TRANSPARENT)
         .focus_border_fill(Color::TRANSPARENT)
         .inner_margin(Gaps::new(0., 0., 0., 0.))
@@ -236,12 +236,12 @@ impl Component for TabButton {
         };
 
         // Track input focus to cancel editing on blur
-        let input_a11y_id = use_hook(|| Focus::new_id());
-        let input_focus_status = use_focus_status(Focus::new_for_id(input_a11y_id));
+        let input_a11y_id = use_a11y();
+        let input_focus = use_focus(input_a11y_id);
         let mut was_focused = use_state(|| false);
 
         if *editing.read() {
-            if input_focus_status() != FocusStatus::Not {
+            if input_focus().is_focused() {
                 was_focused.set(true);
             } else if *was_focused.read() {
                 editing.set(false);

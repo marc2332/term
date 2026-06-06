@@ -3,7 +3,7 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use async_io::Timer;
-use freya::prelude::{AccessibilityId, Clipboard, Focus, TaskHandle, UseId, spawn};
+use freya::prelude::{AccessibilityId, AccessibilityIdExt, Clipboard, TaskHandle, UseId, spawn};
 use freya::radio::{Radio, RadioChannel};
 use freya::terminal::*;
 use futures::FutureExt;
@@ -78,7 +78,7 @@ fn make_handle(shell: &str, cwd: Option<PathBuf>) -> TerminalHandle {
 
 impl PanelNode {
     pub fn new_leaf(shell: &str, cwd: Option<PathBuf>) -> (AccessibilityId, Self) {
-        let id = Focus::new_id();
+        let id = AccessibilityId::new_unique();
         (id, PanelNode::Leaf(id, make_handle(shell, cwd), None))
     }
 
@@ -427,7 +427,7 @@ impl AppState {
 
     fn focus_active_panel(&self) {
         if let Some(tab) = self.active_tab() {
-            Focus::new_for_id(tab.active_panel).request_focus();
+            tab.active_panel.request_focus();
         }
     }
 
@@ -546,7 +546,7 @@ impl AppState {
                 tab.panels.panel_task(active_id),
             );
             tab.panels = active_leaf;
-            Focus::new_for_id(active_id).request_focus();
+            active_id.request_focus();
         }
     }
 
@@ -558,7 +558,7 @@ impl AppState {
                 if let Some(panel) = leaves.into_iter().last() {
                     tab.active_panel = panel;
                     tab.update_title_from_active_panel();
-                    Focus::new_for_id(panel).request_focus();
+                    panel.request_focus();
                 }
             }
         }
@@ -570,7 +570,7 @@ impl AppState {
         {
             tab.active_panel = neighbour;
             tab.update_title_from_active_panel();
-            Focus::new_for_id(neighbour).request_focus();
+            neighbour.request_focus();
         }
     }
 
