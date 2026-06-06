@@ -27,7 +27,16 @@
     </screenshot>
   </screenshots>
   <releases>
-    <release version="0.2.0" date="2026-04-06">
+    <release version="0.3.4" date="2026-05-10">
+      <description><p>Forward Home and End to TUI apps when scrollback isn't engaged.</p></description>
+    </release>
+    <release version="0.3.3" date="2026-05-10">
+      <description><p>Home and End keys scroll to top and bottom of scrollback.</p></description>
+    </release>
+    <release version="0.3.2" date="2026-05-09">
+      <description><p>Clickable URLs in the terminal and context menu support.</p></description>
+    </release>
+    <release version="0.3.1" date="2026-04-06">
       <description><p>Nix flake cleanup.</p></description>
     </release>
     <release version="0.1.15" date="2026-04-06">

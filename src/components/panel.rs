@@ -24,8 +24,12 @@ impl Component for Panel {
         let mut cell_size = use_state(Size2D::zero);
         let mut terminal_area = use_state(Area::zero);
         let mut is_pressed = use_state(|| false);
+        let mut click_origin = use_state(|| None::<(usize, usize)>);
 
-        let to_cell = move |global: CursorPoint| -> Option<(usize, usize)> {
+        // Convert a global cursor point into fractional terminal cell
+        // coordinates, clamped to the terminal area so drags can continue
+        // outside the viewport.
+        let to_cell = move |global: CursorPoint| -> Option<(f32, f32)> {
             let cell = cell_size.read().to_f64();
             if cell.is_empty() {
                 return None;
@@ -36,8 +40,8 @@ impl Component for Panel {
             let local_y =
                 (global.y - area.min_y()).clamp(0.0, (area.height() - cell.height).max(0.0));
             Some((
-                (local_y / cell.height) as usize,
-                (local_x / cell.width) as usize,
+                (local_y / cell.height) as f32,
+                (local_x / cell.width) as f32,
             ))
         };
 
@@ -126,6 +130,19 @@ impl Component for Panel {
                                 let _ = handle.paste(&text);
                             }
                         }
+                        Key::Named(NamedKey::Home) => {
+                            handle.scroll(i32::MAX);
+                            if handle.term().grid().display_offset() == 0 {
+                                let _ = handle.write(b"\x1b[H");
+                            }
+                        }
+                        Key::Named(NamedKey::End) => {
+                            if handle.term().grid().display_offset() == 0 {
+                                let _ = handle.write(b"\x1b[F");
+                            } else {
+                                handle.scroll_to_bottom();
+                            }
+                        }
                         _ => {
                             let _ = handle.write_key(&e.key, e.modifiers);
                         }
@@ -146,7 +163,14 @@ impl Component for Panel {
                                 .find(|tab| tab.id == tab_id).unwrap().active_panel = panel_id;
                             if let Some((row, col)) = to_cell(event.global_location) {
                                 is_pressed.set(true);
-                                handle.mouse_down(row, col, to_button(event.button));
+                                click_origin.set(Some((row as usize, col as usize)));
+                                let selection_type =
+                                    match EventsCombos::pressed(event.element_location) {
+                                        PressEventType::Double => SelectionType::Semantic,
+                                        PressEventType::Triple => SelectionType::Lines,
+                                        _ => SelectionType::Simple,
+                                    };
+                                handle.mouse_down(row, col, to_button(event.button), selection_type);
                             }
                         }
                     })
@@ -169,8 +193,19 @@ impl Component for Panel {
                                 return;
                             }
                             is_pressed.set(false);
+                            let origin = *click_origin.read();
+                            click_origin.set(None);
                             match to_cell(event.global_location()) {
-                                Some((row, col)) => handle.mouse_up(row, col, to_button(event.button())),
+                                Some((row, col)) => {
+                                    let button = to_button(event.button());
+                                    handle.mouse_up(row, col, button);
+                                    if button == TerminalMouseButton::Left
+                                        && origin == Some((row as usize, col as usize))
+                                        && let Some(url) = handle.hyperlink_at(row, col)
+                                    {
+                                        let _ = open::that(url);
+                                    }
+                                }
                                 None => handle.release(),
                             }
                         }
