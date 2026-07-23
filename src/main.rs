@@ -1,5 +1,7 @@
 mod components;
 mod config;
+mod git;
+mod session;
 mod state;
 
 use clap::Parser;
@@ -7,8 +9,7 @@ use components::app::App;
 use config::Config;
 use freya::prelude::*;
 
-/// Fall back to the Adwaita cursor theme when the host theme isn't reachable
-/// inside the Flatpak sandbox (causes an invisible cursor on Wayland).
+/// Fall back to Adwaita when the host cursor theme isn't reachable in Flatpak.
 #[cfg(target_os = "linux")]
 fn fix_flatpak_cursor_theme() {
     if std::env::var("FLATPAK_ID").is_err() {
@@ -54,6 +55,7 @@ fn main() {
         WindowConfig::new(move || App {
             font_size: config.font_size,
             shell: config.shell.clone(),
+            startup: config.startup,
         })
         .with_title("marcterm")
         .with_app_id("io.marc.term")

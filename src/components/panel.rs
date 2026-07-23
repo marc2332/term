@@ -25,9 +25,7 @@ impl Component for Panel {
         let mut is_pressed = use_state(|| false);
         let mut click_origin = use_state(|| None::<(usize, usize)>);
 
-        // Convert a global cursor point into fractional terminal cell
-        // coordinates, clamped to the terminal area so drags can continue
-        // outside the viewport.
+        // Global cursor point to terminal cell, clamped so drags continue outside.
         let to_cell = move |global: CursorPoint| -> Option<(f32, f32)> {
             let cell = cell_size.read().to_f64();
             if cell.is_empty() {
@@ -98,7 +96,7 @@ impl Component for Panel {
                     let ctrl = mods.contains(Modifiers::CONTROL);
                     let alt = mods.contains(Modifiers::ALT);
 
-                    let is_shortcut = (ctrl_shift && matches!(&e.key, Key::Character(ch) if matches!(ch.to_lowercase().as_str(), "t" | "w")))
+                    let is_shortcut = (ctrl_shift && matches!(&e.key, Key::Character(ch) if matches!(ch.to_lowercase().as_str(), "t" | "w" | "o")))
                         || (ctrl && matches!(&e.key, Key::Named(NamedKey::Tab)))
                         || (alt && matches!(&e.key, Key::Character(ch) if ch.eq_ignore_ascii_case("p") || ch.eq_ignore_ascii_case("b") || ch == "1"))
                         || (alt && matches!(&e.key, Key::Character(ch) if ch == "+" || ch == "=" || ch == "-"))

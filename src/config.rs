@@ -1,5 +1,18 @@
 use serde::Deserialize;
 
+/// What to show when the app starts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Startup {
+    /// Welcome screen with recent projects and sessions.
+    #[default]
+    Welcome,
+    /// Restore the most recent session directly.
+    RestoreLast,
+    /// A single plain terminal, like before projects existed.
+    Fresh,
+}
+
 /// Configuration loaded from `marcterm.toml`.
 #[derive(Debug, Clone, Deserialize)]
 pub struct Config {
@@ -10,6 +23,10 @@ pub struct Config {
     /// Initial font size in logical pixels.
     #[serde(default = "default_font_size")]
     pub font_size: f32,
+
+    /// What to show on launch: "welcome", "restore-last" or "fresh".
+    #[serde(default)]
+    pub startup: Startup,
 }
 
 fn default_shell() -> String {
@@ -25,14 +42,14 @@ impl Default for Config {
         Self {
             shell: default_shell(),
             font_size: default_font_size(),
+            startup: Startup::default(),
         }
     }
 }
 
 impl Config {
     pub fn path() -> std::path::PathBuf {
-        // Inside Flatpak, XDG_CONFIG_HOME points to ~/.var/app/<id>/config/
-        // but we want the host's ~/.config/ since marcterm integrates with the host.
+        // Use the host's ~/.config, not the Flatpak sandbox's XDG_CONFIG_HOME.
         if std::env::var("FLATPAK_ID").is_ok() {
             let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
             return std::path::PathBuf::from(home)
