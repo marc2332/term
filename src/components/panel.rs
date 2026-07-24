@@ -25,7 +25,7 @@ impl Component for Panel {
         let mut is_pressed = use_state(|| false);
         let mut click_origin = use_state(|| None::<(usize, usize)>);
 
-        // Global cursor point to terminal cell, clamped so drags continue outside.
+        // Global cursor point to terminal cell, clamped to the terminal area.
         let to_cell = move |global: CursorPoint| -> Option<(f32, f32)> {
             let cell = cell_size.read().to_f64();
             if cell.is_empty() {

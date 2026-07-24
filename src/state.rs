@@ -46,7 +46,7 @@ impl ProjectId {
     }
 }
 
-/// An open project; `worktrees` is refreshed via [`refresh_worktrees`].
+/// An open project.
 #[derive(Clone, PartialEq)]
 pub struct Project {
     pub id: ProjectId,
@@ -61,6 +61,8 @@ pub struct Project {
     /// Custom sidebar order of non-main worktree names.
     pub worktree_order: Vec<String>,
     pub collapsed: bool,
+    /// Reveal archived worktrees in the sidebar (not persisted).
+    pub show_archived: bool,
 }
 
 /// Main worktree first, then the custom order, then alphabetical.
@@ -84,6 +86,7 @@ pub fn sorted_worktrees(worktrees: &[Worktree], order: &[String]) -> Vec<Worktre
 pub struct WorktreeEntry {
     pub worktree: Worktree,
     pub tab: Option<TabId>,
+    pub archived: bool,
 }
 
 #[derive(Clone, PartialEq)]
@@ -376,9 +379,9 @@ pub struct Tab {
     pub active_panel: AccessibilityId,
     pub outputting: bool,
     pub last_output: Instant,
-    /// Project this tab is filed under; `None` for loose tabs.
+    /// Project this tab is filed under, `None` for loose tabs.
     pub project: Option<ProjectId>,
-    /// The worktree this tab represents; `Some` pins the tab to its project.
+    /// The worktree this tab represents, `Some` pins the tab to its project.
     pub worktree: Option<PathBuf>,
 }
 
@@ -487,8 +490,31 @@ impl AppState {
             archived,
             worktree_order,
             collapsed: false,
+            show_archived: false,
         });
         id
+    }
+
+    /// Toggle archived rows, closing their terminals when hiding.
+    pub fn toggle_show_archived(&mut self, id: ProjectId) {
+        let hidden_paths = {
+            let Some(project) = self.project_mut(id) else {
+                return;
+            };
+            project.show_archived = !project.show_archived;
+            if project.show_archived {
+                return;
+            }
+            project
+                .worktrees
+                .iter()
+                .filter(|wt| project.archived.contains(&wt.name))
+                .map(|wt| wt.path.clone())
+                .collect::<Vec<_>>()
+        };
+        for path in hidden_paths {
+            self.close_tabs_in_worktree(&path);
+        }
     }
 
     /// Move `dragged` to `target`'s position in the persisted sidebar order.
@@ -536,17 +562,31 @@ impl AppState {
         }
     }
 
+    /// Close every tab open on the given worktree.
+    pub fn close_tabs_in_worktree(&mut self, path: &Path) {
+        let active_id = self.active_tab().map(|t| t.id);
+        self.tabs.retain(|t| t.worktree.as_deref() != Some(path));
+        self.restore_active(active_id);
+    }
+
     /// The project's visible sidebar rows, in display order.
     pub fn worktree_entries(&self, project: &Project) -> Vec<WorktreeEntry> {
         let mut entries: Vec<WorktreeEntry> =
             sorted_worktrees(&project.worktrees, &project.worktree_order)
                 .into_iter()
                 .filter_map(|worktree| {
+                    let archived = project.archived.contains(&worktree.name);
+                    if archived && !project.show_archived {
+                        return None;
+                    }
                     let tab = self
                         .tab_for_worktree(project.id, &worktree.path)
                         .map(|t| t.id);
-                    (tab.is_some() || !project.archived.contains(&worktree.name))
-                        .then_some(WorktreeEntry { worktree, tab })
+                    Some(WorktreeEntry {
+                        worktree,
+                        tab,
+                        archived,
+                    })
                 })
                 .collect();
         for tab in &self.tabs {
@@ -554,9 +594,15 @@ impl AppState {
                 && let Some(path) = &tab.worktree
                 && !project.worktrees.iter().any(|wt| &wt.path == path)
             {
+                let worktree = Worktree::placeholder(path.clone());
+                let archived = project.archived.contains(&worktree.name);
+                if archived && !project.show_archived {
+                    continue;
+                }
                 entries.push(WorktreeEntry {
-                    worktree: Worktree::placeholder(path.clone()),
+                    worktree,
                     tab: Some(tab.id),
+                    archived,
                 });
             }
         }
@@ -848,7 +894,7 @@ pub fn watch_panel(
     panel_id: AccessibilityId,
     handle: TerminalHandle,
 ) -> Rc<PanelTask> {
-    // Detached so it outlives the creating component; PanelTask cancels it.
+    // Detached from the component scope, cancelled by PanelTask on drop.
     let task = spawn_forever(async move {
         let idle = Duration::from_secs(1);
         loop {
@@ -999,17 +1045,11 @@ pub fn refresh_worktrees(mut station: AppStation, project_id: ProjectId) {
     let Some((main, skip_diffs, skip_all)) = ({
         let state = station.peek();
         state.project(project_id).map(|p| {
-            let hidden: Vec<String> = p
-                .archived
-                .iter()
-                .filter(|name| {
-                    p.worktrees
-                        .iter()
-                        .find(|wt| &&wt.name == name)
-                        .is_none_or(|wt| state.tab_for_worktree(p.id, &wt.path).is_none())
-                })
-                .cloned()
-                .collect();
+            let hidden = if p.show_archived {
+                vec![]
+            } else {
+                p.archived.clone()
+            };
             (p.main.clone(), hidden, p.collapsed)
         })
     }) else {
@@ -1056,10 +1096,19 @@ fn build_panels(layout: &PanelLayout, shell: &str, fallback_cwd: Option<&Path>) 
 }
 
 fn restore_tab(mut station: AppStation, saved: &SessionTab, project: Option<ProjectId>) {
-    if let Some(worktree) = &saved.worktree
-        && !worktree.is_dir()
-    {
-        return;
+    if let Some(worktree) = &saved.worktree {
+        if !worktree.is_dir() {
+            return;
+        }
+        let archived = project.is_some_and(|id| {
+            station
+                .peek()
+                .project(id)
+                .is_some_and(|p| p.archived.contains(&git::dir_name(worktree)))
+        });
+        if archived {
+            return;
+        }
     }
     let shell = station.peek().shell.clone();
     let panels = build_panels(&saved.layout, &shell, saved.worktree.as_deref());
@@ -1091,7 +1140,7 @@ fn restore_tab(mut station: AppStation, saved: &SessionTab, project: Option<Proj
 
 /// Reopen a saved session's projects and tabs, detecting projects off the UI thread.
 pub fn restore_session(mut station: AppStation, saved: &Session) {
-    // Adopt the saved identity so autosave updates its entry in place.
+    // Autosave updates the restored session entry in place.
     station.write_channel(AppChannel::Tabs).started_at = saved.started_at;
     let saved_projects = saved.projects.clone();
     let loose_tabs = saved.loose_tabs.clone();

@@ -12,7 +12,7 @@ use crate::state::{
 
 type AppRadio = Radio<AppState, AppChannel>;
 
-/// One payload type for every sidebar drag so any row can be a drop target.
+/// Payload for every sidebar drag.
 #[derive(Clone, PartialEq)]
 enum DragPayload {
     Tab(TabId),
@@ -23,21 +23,76 @@ enum DragPayload {
 pub struct TabBar;
 
 #[derive(PartialEq, Clone)]
-struct ProjectGroup {
-    id: ProjectId,
-    name: String,
-    collapsed: bool,
-    has_archived: bool,
-    worktree_rows: Vec<WorktreeRow>,
-    plain_tabs: Vec<TabButton>,
+enum SidebarItem {
+    Header(ProjectHeader),
+    Worktree(WorktreeRow),
+    Tab(TabButton),
+    NewTab(ProjectId, bool),
+    Divider,
+    LooseDrop,
+}
+
+/// Row height plus the 4px gap below it.
+fn sidebar_item_size(item: &SidebarItem) -> f32 {
+    let height = match item {
+        SidebarItem::Header(_) => 28.,
+        SidebarItem::Worktree(row) => {
+            if row.compact {
+                31.
+            } else {
+                50.
+            }
+        }
+        SidebarItem::Tab(_) | SidebarItem::NewTab(..) => 31.,
+        SidebarItem::Divider => 1.,
+        SidebarItem::LooseDrop => 24.,
+    };
+    height + 4.
+}
+
+fn sidebar_item_element(mut radio: AppRadio, station: AppStation, item: &SidebarItem) -> Element {
+    match item {
+        SidebarItem::Header(header) => {
+            let group_id = header.id;
+            DropZone::new(header.clone(), move |payload: DragPayload| {
+                if let DragPayload::Tab(dragged_id) = payload {
+                    radio
+                        .write_channel(AppChannel::Tabs)
+                        .reparent_tab(dragged_id, Some(group_id));
+                }
+            })
+            .into_element()
+        }
+        SidebarItem::Worktree(row) => draggable_worktree_row(radio, row.clone()),
+        SidebarItem::Tab(tab) => draggable_tab(radio, tab.clone()),
+        SidebarItem::NewTab(project_id, compact) => {
+            new_tab_button(station, Some(*project_id), *compact).into_element()
+        }
+        SidebarItem::Divider => rect()
+            .width(Size::fill())
+            .height(Size::px(1.))
+            .background((45, 45, 45))
+            .into_element(),
+        SidebarItem::LooseDrop => DropZone::new(
+            rect().width(Size::fill()).height(Size::fill()),
+            move |payload: DragPayload| {
+                if let DragPayload::Tab(dragged_id) = payload {
+                    radio
+                        .write_channel(AppChannel::Tabs)
+                        .reparent_tab(dragged_id, None);
+                }
+            },
+        )
+        .into_element(),
+    }
 }
 
 impl Component for TabBar {
     fn render(&self) -> impl IntoElement {
-        let mut radio = use_radio(AppChannel::Tabs);
+        let radio = use_radio(AppChannel::Tabs);
         let station = use_radio_station::<AppState, AppChannel>();
 
-        let (groups, loose_tabs, sidebar_collapsed) = {
+        let (items, sidebar_collapsed) = {
             let state = radio.read();
             let index_of: HashMap<TabId, usize> = state
                 .display_order()
@@ -55,118 +110,64 @@ impl Component for TabBar {
                 outputting: tab.outputting,
                 collapsed: state.sidebar_collapsed,
             };
-            let groups: Vec<ProjectGroup> = state
-                .projects
-                .iter()
-                .map(|project| {
-                    let worktree_rows = state
-                        .worktree_entries(project)
-                        .into_iter()
-                        .map(|entry| WorktreeRow {
-                            project_id: project.id,
-                            is_main: entry.worktree.is_main,
-                            worktree: entry.worktree,
-                            tab: entry.tab.map(|id| OpenTab {
-                                id,
-                                index: index_of.get(&id).copied().unwrap_or(0),
-                                active: active_id == Some(id),
-                                outputting: state
-                                    .tabs
-                                    .iter()
-                                    .find(|t| t.id == id)
-                                    .is_some_and(|t| t.outputting),
-                            }),
-                            compact: state.sidebar_collapsed,
-                        })
-                        .collect();
-                    let plain_tabs = state
+
+            let mut items: Vec<SidebarItem> = vec![];
+            for project in &state.projects {
+                items.push(SidebarItem::Header(ProjectHeader {
+                    id: project.id,
+                    name: project.name.clone(),
+                    collapsed: project.collapsed,
+                    has_archived: !project.archived.is_empty(),
+                    show_archived: project.show_archived,
+                    compact: state.sidebar_collapsed,
+                }));
+                if project.collapsed {
+                    continue;
+                }
+                for entry in state.worktree_entries(project) {
+                    let open_tab = entry.tab.and_then(|id| state.tabs.iter().find(|t| t.id == id));
+                    items.push(SidebarItem::Worktree(WorktreeRow {
+                        project_id: project.id,
+                        is_main: entry.worktree.is_main,
+                        archived: entry.archived,
+                        worktree: entry.worktree,
+                        tab: open_tab.map(|t| OpenTab {
+                            id: t.id,
+                            index: index_of.get(&t.id).copied().unwrap_or(0),
+                            active: active_id == Some(t.id),
+                            outputting: t.outputting,
+                        }),
+                        tab_title: open_tab
+                            .map(|t| t.title.clone())
+                            .filter(|title| !title.is_empty()),
+                        compact: state.sidebar_collapsed,
+                    }));
+                }
+                items.extend(
+                    state
                         .tabs
                         .iter()
                         .filter(|t| t.project == Some(project.id) && t.worktree.is_none())
-                        .map(tab_button)
-                        .collect();
-                    ProjectGroup {
-                        id: project.id,
-                        name: project.name.clone(),
-                        collapsed: project.collapsed,
-                        has_archived: !project.archived.is_empty(),
-                        worktree_rows,
-                        plain_tabs,
-                    }
-                })
-                .collect();
-            let loose_tabs: Vec<TabButton> = state
+                        .map(|t| SidebarItem::Tab(tab_button(t))),
+                );
+                items.push(SidebarItem::NewTab(project.id, state.sidebar_collapsed));
+            }
+            let loose: Vec<SidebarItem> = state
                 .tabs
                 .iter()
                 .filter(|t| t.project.is_none())
-                .map(tab_button)
+                .map(|t| SidebarItem::Tab(tab_button(t)))
                 .collect();
-            (groups, loose_tabs, state.sidebar_collapsed)
+            if !state.projects.is_empty() && !loose.is_empty() {
+                items.push(SidebarItem::Divider);
+            }
+            items.extend(loose);
+            items.push(SidebarItem::LooseDrop);
+            (items, state.sidebar_collapsed)
         };
 
-        let has_projects = !groups.is_empty();
-        let has_loose = !loose_tabs.is_empty();
-
-        let mut items: Vec<Element> = vec![];
-        for group in groups {
-            let group_id = group.id;
-            items.push(
-                DropZone::new(
-                    ProjectHeader {
-                        id: group.id,
-                        name: group.name.clone(),
-                        collapsed: group.collapsed,
-                        has_archived: group.has_archived,
-                        compact: sidebar_collapsed,
-                    },
-                    move |payload: DragPayload| {
-                        if let DragPayload::Tab(dragged_id) = payload {
-                            radio
-                                .write_channel(AppChannel::Tabs)
-                                .reparent_tab(dragged_id, Some(group_id));
-                        }
-                    },
-                )
-                .key(&("project", group.id.0))
-                .into_element(),
-            );
-            if group.collapsed {
-                continue;
-            }
-            for row in group.worktree_rows {
-                items.push(draggable_worktree_row(radio, row));
-            }
-            for tab in group.plain_tabs {
-                items.push(draggable_tab(radio, tab));
-            }
-            items.push(new_tab_button(station, Some(group_id), sidebar_collapsed).into_element());
-        }
-
-        if has_projects && has_loose {
-            items.push(
-                rect()
-                    .width(Size::fill())
-                    .height(Size::px(1.))
-                    .background((45, 45, 45))
-                    .into_element(),
-            );
-        }
-
-        let loose_section = DropZone::new(
-            rect()
-                .width(Size::fill())
-                .min_height(Size::px(8.))
-                .spacing(4.)
-                .vertical()
-                .children(loose_tabs.into_iter().map(|tab| draggable_tab(radio, tab))),
-            move |payload: DragPayload| {
-                if let DragPayload::Tab(dragged_id) = payload {
-                    radio
-                        .write_channel(AppChannel::Tabs)
-                        .reparent_tab(dragged_id, None);
-                }
-            },
-        );
+        let sizes: Vec<f32> = items.iter().map(sidebar_item_size).collect();
+        let length = items.len();
 
         rect()
             .expanded()
@@ -176,13 +177,20 @@ impl Component for TabBar {
             .direction(Direction::Vertical)
             .content(Content::flex())
             .child(
-                ScrollView::new()
-                    .height(Size::flex(1.))
-                    .width(Size::fill())
-                    .spacing(4.)
-                    .show_scrollbar(false)
-                    .children(items)
-                    .child(loose_section),
+                VirtualScrollView::new(move |item, _| {
+                    rect()
+                        .key(item.index)
+                        .width(Size::fill())
+                        .height(Size::px(item.size))
+                        .padding((0., 0., 4., 0.))
+                        .child(sidebar_item_element(radio, station, &items[item.index]))
+                        .into()
+                })
+                .length(length)
+                .item_size(move |index: usize| sizes[index])
+                .show_scrollbar(false)
+                .width(Size::fill())
+                .height(Size::flex(1.)),
             )
             .child(
                 rect()
@@ -190,8 +198,57 @@ impl Component for TabBar {
                     .height(Size::px(1.))
                     .background((45, 45, 45)),
             )
-            .child(new_tab_button(station, None, sidebar_collapsed))
-            .child(add_project_button(radio, sidebar_collapsed))
+            .child(bottom_actions(radio, station, sidebar_collapsed))
+            .into_element()
+    }
+}
+
+fn pill_button(
+    icon: Svg,
+    tooltip: &'static str,
+    on_press: impl FnMut(Event<PressEventData>) + 'static,
+) -> impl IntoElement {
+    rect().width(Size::flex(1.)).child(
+        TooltipContainer::new(Tooltip::new(tooltip))
+            .position(AttachedPosition::Top)
+            .child(
+            Button::new()
+                .flat()
+                .rounded_full()
+                .width(Size::fill())
+                .on_press(on_press)
+                .color((200, 200, 200))
+                .child(
+                    rect().width(Size::fill()).center().child(
+                        icon.width(Size::px(15.))
+                            .height(Size::px(15.))
+                            .stroke((200, 200, 200)),
+                    ),
+                ),
+            ),
+    )
+}
+
+fn bottom_actions(mut radio: AppRadio, station: AppStation, compact: bool) -> Element {
+    if compact {
+        rect()
+            .width(Size::fill())
+            .vertical()
+            .child(new_tab_button(station, None, true))
+            .child(add_project_button(radio, true))
+            .into_element()
+    } else {
+        rect()
+            .width(Size::fill())
+            .horizontal()
+            .content(Content::flex())
+            .spacing(8.)
+            .child(pill_button(svg(lucide::circle_plus()), "New Tab", move |_| {
+                create_plain_tab(station, None);
+            }))
+            .child(pill_button(svg(lucide::folder_plus()), "Add Project", move |_| {
+                radio.write_channel(AppChannel::Tabs).modal = Some(Modal::AddProject);
+            }))
             .into_element()
     }
 }
@@ -217,7 +274,8 @@ fn drag_preview(content: impl IntoElement) -> Rect {
 fn draggable_tab(mut radio: AppRadio, tab: TabButton) -> Element {
     let drop_tab_id = tab.tab_id;
     let drag_title = tab.title.clone();
-    DropZone::new(
+    let tooltip = tab.title.clone();
+    let zone = DropZone::new(
         DragZone::new(DragPayload::Tab(tab.tab_id), tab)
             .show_while_dragging(false)
             .drag_element(drag_preview(
@@ -233,17 +291,23 @@ fn draggable_tab(mut radio: AppRadio, tab: TabButton) -> Element {
                     .move_tab(dragged_id, drop_tab_id);
             }
         },
-    )
-    .key(&("tab", drop_tab_id.0))
-    .into_element()
+    );
+    rect()
+        .width(Size::fill())
+        .child(TooltipContainer::new(Tooltip::new(tooltip))
+                .position(AttachedPosition::Right)
+                .child(zone))
+        .key(&("tab", drop_tab_id.0))
+        .into_element()
 }
 
-/// Worktree rows drag to reorder within their own project; main stays pinned.
+/// Worktree rows drag to reorder within their own project.
 fn draggable_worktree_row(mut radio: AppRadio, row: WorktreeRow) -> Element {
     let project_id = row.project_id;
     let name = row.worktree.name.clone();
     let target_name = name.clone();
     let row_key = name.clone();
+    let tooltip = name.clone();
 
     let inner: Element = if row.is_main {
         row.into_element()
@@ -272,7 +336,7 @@ fn draggable_worktree_row(mut radio: AppRadio, row: WorktreeRow) -> Element {
             .into_element()
     };
 
-    DropZone::new(inner, move |payload: DragPayload| {
+    let zone = DropZone::new(inner, move |payload: DragPayload| {
         if let DragPayload::Worktree(dragged_project, dragged_name) = payload
             && dragged_project == project_id
         {
@@ -280,9 +344,14 @@ fn draggable_worktree_row(mut radio: AppRadio, row: WorktreeRow) -> Element {
                 .write_channel(AppChannel::Tabs)
                 .reorder_worktree(project_id, &dragged_name, &target_name);
         }
-    })
-    .key(&("worktree", project_id.0, row_key))
-    .into_element()
+    });
+    rect()
+        .width(Size::fill())
+        .child(TooltipContainer::new(Tooltip::new(tooltip))
+                .position(AttachedPosition::Right)
+                .child(zone))
+        .key(&("worktree", project_id.0, row_key))
+        .into_element()
 }
 
 fn menu_item(text: &'static str, mut action: impl FnMut() + 'static) -> MenuButton {
@@ -296,22 +365,33 @@ fn menu_item(text: &'static str, mut action: impl FnMut() + 'static) -> MenuButt
         .child(text)
 }
 
-fn open_project_menu(mut radio: AppRadio, id: ProjectId, has_archived: bool) {
+fn open_project_menu(mut radio: AppRadio, id: ProjectId, has_archived: bool, show_archived: bool) {
     let mut menu = Menu::new().child(menu_item("Archive All Worktrees", move || {
         let mut state = radio.write_channel(AppChannel::Tabs);
-        let archived: Vec<String> = state
+        let targets: Vec<(String, std::path::PathBuf)> = state
             .project(id)
             .map(|p| {
                 p.worktrees
                     .iter()
                     .filter(|wt| !wt.is_main)
-                    .map(|wt| wt.name.clone())
+                    .map(|wt| (wt.name.clone(), wt.path.clone()))
                     .collect()
             })
             .unwrap_or_default();
-        state.set_archived(id, archived);
+        state.set_archived(id, targets.iter().map(|(name, _)| name.clone()).collect());
+        for (_, path) in &targets {
+            state.close_tabs_in_worktree(path);
+        }
     }));
     if has_archived {
+        let label = if show_archived {
+            "Hide Archived Worktrees"
+        } else {
+            "Show Archived Worktrees"
+        };
+        menu = menu.child(menu_item(label, move || {
+            radio.write_channel(AppChannel::Tabs).toggle_show_archived(id);
+        }));
         menu = menu.child(menu_item("Unarchive All Worktrees", move || {
             radio.write_channel(AppChannel::Tabs).set_archived(id, vec![]);
         }));
@@ -328,6 +408,7 @@ struct ProjectHeader {
     name: String,
     collapsed: bool,
     has_archived: bool,
+    show_archived: bool,
     compact: bool,
 }
 
@@ -335,6 +416,7 @@ impl Component for ProjectHeader {
     fn render(&self) -> impl IntoElement {
         let id = self.id;
         let has_archived = self.has_archived;
+        let show_archived = self.show_archived;
         let mut radio = use_radio(AppChannel::Tabs);
 
         let chevron = if self.collapsed {
@@ -348,7 +430,7 @@ impl Component for ProjectHeader {
                 .width(Size::fill())
                 .height(Size::fill())
                 .center()
-                .on_secondary_down(move |_| open_project_menu(radio, id, has_archived))
+                .on_secondary_down(move |_| open_project_menu(radio, id, has_archived, show_archived))
                 .child(
                     svg(chevron)
                         .width(Size::px(14.))
@@ -362,7 +444,7 @@ impl Component for ProjectHeader {
                 .horizontal()
                 .cross_align(Alignment::Center)
                 .spacing(6.)
-                .on_secondary_down(move |_| open_project_menu(radio, id, has_archived))
+                .on_secondary_down(move |_| open_project_menu(radio, id, has_archived, show_archived))
                 .child(
                     svg(chevron)
                         .width(Size::px(14.))
@@ -376,10 +458,12 @@ impl Component for ProjectHeader {
                         .stroke((150, 150, 150)),
                 )
                 .child(
-                    OverflowedContent::new()
+                    label()
+                        .text(self.name.clone())
                         .width(Size::flex(1.))
-                        .height(Size::auto())
-                        .child(label().text(self.name.clone()).font_size(13.).max_lines(1)),
+                        .font_size(13.)
+                        .max_lines(1)
+                        .text_overflow(TextOverflow::Ellipsis),
                 )
                 .into_element()
         };
@@ -411,6 +495,7 @@ fn open_worktree_menu(
     project_id: ProjectId,
     worktree: &Worktree,
     is_main: bool,
+    archived: bool,
     tab_id: Option<TabId>,
 ) {
     let mut menu = Menu::new();
@@ -421,16 +506,27 @@ fn open_worktree_menu(
     }
     if !is_main {
         let name = worktree.name.clone();
-        menu = menu.child(menu_item("Archive Worktree", move || {
+        let path = worktree.path.clone();
+        let label = if archived {
+            "Unarchive Worktree"
+        } else {
+            "Archive Worktree"
+        };
+        menu = menu.child(menu_item(label, move || {
             let mut state = radio.write_channel(AppChannel::Tabs);
-            let mut archived = state
+            let mut list = state
                 .project(project_id)
                 .map(|p| p.archived.clone())
                 .unwrap_or_default();
-            if !archived.contains(&name) {
-                archived.push(name.clone());
-                state.set_archived(project_id, archived);
+            if archived {
+                list.retain(|n| n != &name);
+            } else {
+                if !list.contains(&name) {
+                    list.push(name.clone());
+                }
+                state.close_tabs_in_worktree(&path);
             }
+            state.set_archived(project_id, list);
         }));
     }
     ContextMenu::open(menu);
@@ -448,8 +544,10 @@ struct OpenTab {
 struct WorktreeRow {
     project_id: ProjectId,
     is_main: bool,
+    archived: bool,
     worktree: Worktree,
     tab: Option<OpenTab>,
+    tab_title: Option<String>,
     compact: bool,
 }
 
@@ -472,14 +570,18 @@ impl Component for WorktreeRow {
         } else {
             (25, 25, 25).into()
         };
-        let text_color: Color = if is_active {
+        let text_color: Color = if self.archived && !is_active {
+            (110, 110, 110).into()
+        } else if is_active {
             (230, 230, 230).into()
         } else if is_open {
             (170, 170, 170).into()
         } else {
             (110, 110, 110).into()
         };
-        let icon = if self.is_main {
+        let icon = if self.archived {
+            lucide::archive()
+        } else if self.is_main {
             lucide::house()
         } else {
             lucide::git_branch()
@@ -498,8 +600,9 @@ impl Component for WorktreeRow {
         let open_menu = {
             let worktree = worktree.clone();
             let is_main = self.is_main;
+            let archived = self.archived;
             move |_: Event<PressEventData>| {
-                open_worktree_menu(radio, project_id, &worktree, is_main, tab_id);
+                open_worktree_menu(radio, project_id, &worktree, is_main, archived, tab_id);
             }
         };
 
@@ -531,11 +634,22 @@ impl Component for WorktreeRow {
                 .vertical()
                 .main_align(Alignment::Center)
                 .child(
-                    OverflowedContent::new()
+                    label()
+                        .text(self.worktree.name.clone())
                         .width(Size::fill())
-                        .height(Size::auto())
-                        .child(label().text(self.worktree.name.clone()).max_lines(1)),
+                        .max_lines(1)
+                        .text_overflow(TextOverflow::Ellipsis),
                 )
+                .map(self.tab_title.clone(), |el, title| {
+                    el.child(
+                        label()
+                            .text(title)
+                            .width(Size::fill())
+                            .color((130, 130, 130))
+                            .max_lines(1)
+                            .text_overflow(TextOverflow::Ellipsis),
+                    )
+                })
                 .map(diff, |el, diff| {
                     el.child(
                         rect()
@@ -557,7 +671,7 @@ impl Component for WorktreeRow {
                     )
                 });
 
-            // Fixed slot so the layout doesn't shift when a tab opens or closes.
+            // Fixed slot, the layout must not shift when a tab opens or closes.
             let trailing: Element = rect()
                 .width(Size::px(20.))
                 .height(Size::px(20.))
@@ -578,15 +692,20 @@ impl Component for WorktreeRow {
                 .content(Content::flex())
                 .cross_align(Alignment::Center)
                 .spacing(6.)
-                .padding((0., 0., 0., 10.))
                 .on_pointer_over(move |_| hovered.set(true))
                 .on_pointer_out(move |_| hovered.set(false))
                 .on_secondary_down(open_menu)
                 .child(
-                    svg(icon)
-                        .width(Size::px(13.))
-                        .height(Size::px(13.))
-                        .stroke(text_color),
+                    rect()
+                        .width(Size::px(28.))
+                        .height(Size::fill())
+                        .center()
+                        .child(
+                            svg(icon)
+                                .width(Size::px(13.))
+                                .height(Size::px(13.))
+                                .stroke(text_color),
+                        ),
                 )
                 .child(name_block)
                 .child(trailing)
@@ -595,7 +714,7 @@ impl Component for WorktreeRow {
 
         Button::new()
             .width(Size::fill())
-            .height(Size::px(if self.compact { 31. } else { 40. }))
+            .height(Size::px(if self.compact { 31. } else { 50. }))
             .flat()
             .rounded_lg()
             .background(background)
@@ -612,7 +731,7 @@ impl Component for WorktreeRow {
     }
 }
 
-/// The one style every sidebar action uses; icon-only when collapsed.
+/// Shared style for sidebar actions, icon-only when collapsed.
 fn sidebar_action_button(
     icon: Svg,
     text: &'static str,
@@ -738,10 +857,11 @@ fn rename_input(
 }
 
 fn tab_title(title: String) -> Element {
-    OverflowedContent::new()
+    label()
+        .text(title)
         .width(Size::flex(1.))
-        .height(Size::auto())
-        .child(label().text(title).max_lines(1))
+        .max_lines(1)
+        .text_overflow(TextOverflow::Ellipsis)
         .into_element()
 }
 

@@ -24,7 +24,7 @@ pub struct SessionTab {
     pub active_leaf: usize,
 }
 
-/// An open project and its open tabs; the worktree list itself belongs to git.
+/// An open project and its open tabs.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SessionProject {
     pub root: PathBuf,
@@ -167,7 +167,7 @@ pub fn update_current_session(session: &Session) {
     save_json("sessions.json", &sessions);
 }
 
-/// Per-project sidebar prefs; `worktrees` keeps the legacy field name.
+/// Per-project sidebar prefs, `worktrees` is the legacy name for `archived`.
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 struct ProjectPrefs {
     root: PathBuf,

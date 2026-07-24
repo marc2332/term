@@ -29,9 +29,9 @@ dependencies = [
 
 [[package]]
 name = "accesskit_atspi_common"
-version = "0.18.0"
+version = "0.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "842fd8203e6dfcf531d24f5bac792088edfba7d6b35844fead191603fb32a260"
+checksum = "1e8c61bee90b42a772d39d06a740207dc71a4e780004ace1db8d99fb1baaa954"
 dependencies = [
  "accesskit",
  "accesskit_consumer",
@@ -43,19 +43,33 @@ dependencies = [
 
 [[package]]
 name = "accesskit_consumer"
-version = "0.35.0"
+version = "0.36.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "53cf47daed85312e763fbf85ceca136e0d7abc68e0a7e12abe11f48172bc3b10"
+checksum = "25e0d7e25d06f4dc21d1774d67146e9e80d6789216cbd4d1e88185b0095dba60"
 dependencies = [
  "accesskit",
  "hashbrown 0.16.1",
 ]
 
 [[package]]
-name = "accesskit_macos"
-version = "0.26.0"
+name = "accesskit_ios"
+version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "534bc3fdc89a64a1db3c46b33c198fde2b7c3c7d094e5809c8c8bf2970c18243"
+checksum = "4f907f6793e18524b69a4530528f8a8fb6dc8b4e162f782b97a9618401e7f2e3"
+dependencies = [
+ "accesskit",
+ "accesskit_consumer",
+ "hashbrown 0.16.1",
+ "objc2 0.5.2",
+ "objc2-foundation 0.2.2",
+ "objc2-ui-kit",
+]
+
+[[package]]
+name = "accesskit_macos"
+version = "0.26.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4c5c87e8d94f2ec10cce590aadff24c76f576dab5502d45d0aed9fc3065d4451"
 dependencies = [
  "accesskit",
  "accesskit_consumer",
@@ -67,9 +81,9 @@ dependencies = [
 
 [[package]]
 name = "accesskit_unix"
-version = "0.21.0"
+version = "0.21.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90e549dd7c6562b6a2ea807b44726e6241707db054a817dc4c7e2b8d3b39bfac"
+checksum = "b016ca8db0ea0ea2ceff29a9d6240391492d960716aa471967c00e8cc8cb197c"
 dependencies = [
  "accesskit",
  "accesskit_atspi_common",
@@ -85,9 +99,9 @@ dependencies = [
 
 [[package]]
 name = "accesskit_windows"
-version = "0.32.1"
+version = "0.33.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eff7009f1a532e917d66970a1e80c965140c6cfbbabbdde3d64e5431e6c78e21"
+checksum = "8e329f630e4379b9b3464c1a4cf22d5dab05d66964d77d623855e803647ca565"
 dependencies = [
  "accesskit",
  "accesskit_consumer",
@@ -99,11 +113,12 @@ dependencies = [
 
 [[package]]
 name = "accesskit_winit"
-version = "0.32.2"
+version = "0.33.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1fe9a94394896352cc4660ca2288bd4ef883d83238853c038b44070c8f134313"
+checksum = "79f3b48f109814c181d6e9b6033641a11b25887d0aec706be8eb16b83ae9d27b"
 dependencies = [
  "accesskit",
+ "accesskit_ios",
  "accesskit_macos",
  "accesskit_unix",
  "accesskit_windows",
@@ -1381,8 +1396,7 @@ checksum = "aa9a19cbb55df58761df49b23516a86d432839add4af60fc256da840f66ed35b"
 [[package]]
 name = "freya"
 version = "0.4.0-rc.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "efaf02313d620a3bbdacf4ce21aafb61ec007e7370a709af5555a0ae4c293b93"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fper-item-size-virtual-scrollview#a60680adc380582e7d5d9ac4a4ab3c628bf2866a"
 dependencies = [
  "cfg-if",
  "freya-android",
@@ -1404,8 +1418,7 @@ dependencies = [
 [[package]]
 name = "freya-android"
 version = "0.4.0-rc.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "423e7fc34643a65c0f9e7989f8a42aeb8234f645cd588dddb43f8ab6e6bcfb79"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fper-item-size-virtual-scrollview#a60680adc380582e7d5d9ac4a4ab3c628bf2866a"
 dependencies = [
  "freya-components",
  "freya-core",
@@ -1418,8 +1431,7 @@ dependencies = [
 [[package]]
 name = "freya-animation"
 version = "0.4.0-rc.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af9a3285ae8d99c1620e49378929ca9122a8f89dc3757563412f6cd145d782d2"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fper-item-size-virtual-scrollview#a60680adc380582e7d5d9ac4a4ab3c628bf2866a"
 dependencies = [
  "async-io",
  "easer",
@@ -1429,8 +1441,7 @@ dependencies = [
 [[package]]
 name = "freya-clipboard"
 version = "0.4.0-rc.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a786a3310bc7a95b106c44b6187657d1d29471245c0d078a4b10df68692d2e8"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fper-item-size-virtual-scrollview#a60680adc380582e7d5d9ac4a4ab3c628bf2866a"
 dependencies = [
  "copypasta",
  "freya-core",
@@ -1439,15 +1450,16 @@ dependencies = [
 [[package]]
 name = "freya-components"
 version = "0.4.0-rc.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aefafd2736a4c85004184917baab2f1f82243039eb0a0190ccf88c548ae41ac3"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fper-item-size-virtual-scrollview#a60680adc380582e7d5d9ac4a4ab3c628bf2866a"
 dependencies = [
  "accesskit",
  "anyhow",
  "async-io",
+ "async-lock",
  "blocking",
  "bytes",
  "cfg-if",
+ "euclid",
  "freya-animation",
  "freya-core",
  "freya-edit",
@@ -1462,8 +1474,7 @@ dependencies = [
 [[package]]
 name = "freya-core"
 version = "0.4.0-rc.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f84e807b48ffbf889d02594e0508a08bb013b3bde6bbd804fef3fe9a15e98f3a"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fper-item-size-virtual-scrollview#a60680adc380582e7d5d9ac4a4ab3c628bf2866a"
 dependencies = [
  "accesskit",
  "async-broadcast",
@@ -1491,8 +1502,7 @@ dependencies = [
 [[package]]
 name = "freya-edit"
 version = "0.4.0-rc.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d7591a171abd8d8732b0ee75147aa332e541afb58373d2e7ac5f33d0d55f6f2"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fper-item-size-virtual-scrollview#a60680adc380582e7d5d9ac4a4ab3c628bf2866a"
 dependencies = [
  "bitflags 2.11.1",
  "freya-clipboard",
@@ -1506,8 +1516,7 @@ dependencies = [
 [[package]]
 name = "freya-engine"
 version = "0.4.0-rc.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "18d8cd3dbea747ff6491315165b3ae49dff70651d01210695f25d51a85314282"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fper-item-size-virtual-scrollview#a60680adc380582e7d5d9ac4a4ab3c628bf2866a"
 dependencies = [
  "freya-skia-safe",
 ]
@@ -1515,8 +1524,7 @@ dependencies = [
 [[package]]
 name = "freya-icons"
 version = "0.4.0-rc.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "521a358786f601b998b70de03cb299ccec9f1be946718cbd27e1c3a28f1a2654"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fper-item-size-virtual-scrollview#a60680adc380582e7d5d9ac4a4ab3c628bf2866a"
 dependencies = [
  "bytes",
 ]
@@ -1524,8 +1532,7 @@ dependencies = [
 [[package]]
 name = "freya-material-design"
 version = "0.4.0-rc.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bacbe00953368e052f1db8a2d5da1ea5d38969ebcdcd26dbdbd85252022560b7"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fper-item-size-virtual-scrollview#a60680adc380582e7d5d9ac4a4ab3c628bf2866a"
 dependencies = [
  "freya-animation",
  "freya-components",
@@ -1537,8 +1544,7 @@ dependencies = [
 [[package]]
 name = "freya-performance-plugin"
 version = "0.4.0-rc.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bb3abee999cd1adecea15d0b348d512f09987ca4c190ba53073cc476efdbadf9"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fper-item-size-virtual-scrollview#a60680adc380582e7d5d9ac4a4ab3c628bf2866a"
 dependencies = [
  "freya-core",
  "freya-engine",
@@ -1548,8 +1554,7 @@ dependencies = [
 [[package]]
 name = "freya-radio"
 version = "0.4.0-rc.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cce9941ce39e3b75f795a40ed4e887147d2e0c672e353713b3c112bbfc479490"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fper-item-size-virtual-scrollview#a60680adc380582e7d5d9ac4a4ab3c628bf2866a"
 dependencies = [
  "freya-core",
 ]
@@ -1557,8 +1562,7 @@ dependencies = [
 [[package]]
 name = "freya-sdk"
 version = "0.4.0-rc.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a2278560b6ff9d0ae8a8258533266e87524a6fb6ce9bea76f9f4d9a362175b9e"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fper-item-size-virtual-scrollview#a60680adc380582e7d5d9ac4a4ab3c628bf2866a"
 dependencies = [
  "async-io",
  "freya-core",
@@ -1609,8 +1613,7 @@ dependencies = [
 [[package]]
 name = "freya-terminal"
 version = "0.4.0-rc.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a80780ac49c0715fa26092d9fb8cc3dd8b9790e0eb3bbe8f93feab060d6f96d"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fper-item-size-virtual-scrollview#a60680adc380582e7d5d9ac4a4ab3c628bf2866a"
 dependencies = [
  "alacritty_terminal",
  "blocking",
@@ -1629,8 +1632,7 @@ dependencies = [
 [[package]]
 name = "freya-winit"
 version = "0.4.0-rc.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f54eb4abb9eb7bea9178ad31982b9544fabbb8d29248f8c1755532be790505d0"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fper-item-size-virtual-scrollview#a60680adc380582e7d5d9ac4a4ab3c628bf2866a"
 dependencies = [
  "accesskit",
  "accesskit_winit",
@@ -3085,8 +3087,7 @@ checksum = "df94ce210e5bc13cb6651479fa48d14f601d9858cfe0467f43ae157023b938d3"
 [[package]]
 name = "pathgraph"
 version = "0.4.0-rc.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9113ea1590c04a912fc9c5404f31fe362a0ac4e9bfb89e09b6440ebbb352f5a3"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fper-item-size-virtual-scrollview#a60680adc380582e7d5d9ac4a4ab3c628bf2866a"
 
 [[package]]
 name = "percent-encoding"
@@ -3360,8 +3361,7 @@ checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 [[package]]
 name = "ragnarok"
 version = "0.4.0-rc.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e69c32d3c252db393e5bf1fb7990958f443c42bbd976aabbbae3427848dc8b0d"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fper-item-size-virtual-scrollview#a60680adc380582e7d5d9ac4a4ab3c628bf2866a"
 dependencies = [
  "euclid",
  "hotpath",
@@ -4208,8 +4208,7 @@ checksum = "756daf9b1013ebe47a8776667b466417e2d4c5679d441c26230efd9ef78692db"
 [[package]]
 name = "torin"
 version = "0.4.0-rc.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bcfd20a0a5301854f64cef8f0ca637cb1f7dad9eb37bc0506efa17ef6792f6ab"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fper-item-size-virtual-scrollview#a60680adc380582e7d5d9ac4a4ab3c628bf2866a"
 dependencies = [
  "euclid",
  "itertools 0.14.0",
