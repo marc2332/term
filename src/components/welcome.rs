@@ -47,7 +47,7 @@ impl Component for Welcome {
                             .horizontal()
                             .spacing(8.)
                             .child(welcome_button(
-                                svg(lucide::folder_plus()),
+                                SvgViewer::new(lucide::folder_plus()),
                                 "Open Project",
                                 false,
                                 move |_| {
@@ -56,7 +56,7 @@ impl Component for Welcome {
                                 },
                             ))
                             .child(welcome_button(
-                                svg(lucide::terminal()),
+                                SvgViewer::new(lucide::terminal()),
                                 "New Terminal",
                                 true,
                                 move |_| create_tab(station, None, None, None),
@@ -96,7 +96,7 @@ impl Component for Welcome {
 }
 
 fn welcome_button(
-    icon: Svg,
+    icon: SvgViewer,
     text: &'static str,
     flat: bool,
     on_press: impl FnMut(Event<PressEventData>) + 'static,
@@ -112,8 +112,8 @@ fn welcome_button(
                 .spacing(6.)
                 .cross_align(Alignment::Center)
                 .child(
-                    icon.width(Size::px(15.))
-                        .height(Size::px(15.))
+                    icon.width(Size::px(16.))
+                        .height(Size::px(16.))
                         .stroke((220, 220, 220)),
                 )
                 .child(label().text(text).font_size(14.)),
@@ -141,9 +141,9 @@ pub fn remove_button(
         .rounded_full()
         .on_press(on_press)
         .child(
-            svg(lucide::x())
-                .width(Size::px(13.))
-                .height(Size::px(13.))
+            SvgViewer::new(lucide::x())
+                .width(Size::px(14.))
+                .height(Size::px(14.))
                 .stroke(stroke),
         )
         .into_element()
@@ -201,7 +201,7 @@ impl Component for RecentProjectRow {
                     .content(Content::flex())
                     .cross_align(Alignment::Center)
                     .child(
-                        svg(lucide::folder_git_2())
+                        SvgViewer::new(lucide::folder_git_2())
                             .width(Size::px(14.))
                             .height(Size::px(14.))
                             .stroke(if exists {
@@ -285,7 +285,7 @@ impl Component for SessionRow {
                     .content(Content::flex())
                     .cross_align(Alignment::Center)
                     .child(
-                        svg(lucide::history())
+                        SvgViewer::new(lucide::history())
                             .width(Size::px(14.))
                             .height(Size::px(14.))
                             .stroke((150, 150, 150)),

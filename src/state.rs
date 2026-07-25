@@ -517,6 +517,35 @@ impl AppState {
         }
     }
 
+    /// Sort worktrees: open with changes, then open, then the rest.
+    pub fn sort_worktrees(&mut self, id: ProjectId) {
+        let Some(project) = self.project(id) else {
+            return;
+        };
+        let mut ranked: Vec<(u8, String)> =
+            sorted_worktrees(&project.worktrees, &project.worktree_order)
+                .into_iter()
+                .filter(|wt| !wt.is_main)
+                .map(|wt| {
+                    let open = self.tab_for_worktree(id, &wt.path).is_some();
+                    let dirty = wt.diff.is_some_and(|d| !d.is_clean());
+                    let rank = match (open, dirty) {
+                        (true, true) => 0,
+                        (true, false) => 1,
+                        (false, true) => 2,
+                        (false, false) => 3,
+                    };
+                    (rank, wt.name)
+                })
+                .collect();
+        ranked.sort_by_key(|(rank, _)| *rank);
+        let order: Vec<String> = ranked.into_iter().map(|(_, name)| name).collect();
+        if let Some(project) = self.project_mut(id) {
+            project.worktree_order = order;
+            session::save_worktree_order(&project.root, &project.worktree_order);
+        }
+    }
+
     /// Move `dragged` to `target`'s position in the persisted sidebar order.
     pub fn reorder_worktree(&mut self, id: ProjectId, dragged: &str, target: &str) {
         let Some(project) = self.project_mut(id) else {

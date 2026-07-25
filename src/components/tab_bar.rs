@@ -27,30 +27,35 @@ enum SidebarItem {
     Header(ProjectHeader),
     Worktree(WorktreeRow),
     Tab(TabButton),
-    NewTab(ProjectId, bool),
     Divider,
     LooseDrop,
+}
+
+fn worktree_row_height(row: &WorktreeRow) -> f32 {
+    if row.compact {
+        31.
+    } else if row.tab.is_some() {
+        50.
+    } else if row.worktree.diff.is_some_and(|d| !d.is_clean()) {
+        44.
+    } else {
+        34.
+    }
 }
 
 /// Row height plus the 4px gap below it.
 fn sidebar_item_size(item: &SidebarItem) -> f32 {
     let height = match item {
         SidebarItem::Header(_) => 28.,
-        SidebarItem::Worktree(row) => {
-            if row.compact {
-                31.
-            } else {
-                50.
-            }
-        }
-        SidebarItem::Tab(_) | SidebarItem::NewTab(..) => 31.,
+        SidebarItem::Worktree(row) => worktree_row_height(row),
+        SidebarItem::Tab(_) => 31.,
         SidebarItem::Divider => 1.,
         SidebarItem::LooseDrop => 24.,
     };
     height + 4.
 }
 
-fn sidebar_item_element(mut radio: AppRadio, station: AppStation, item: &SidebarItem) -> Element {
+fn sidebar_item_element(mut radio: AppRadio, item: &SidebarItem) -> Element {
     match item {
         SidebarItem::Header(header) => {
             let group_id = header.id;
@@ -65,9 +70,6 @@ fn sidebar_item_element(mut radio: AppRadio, station: AppStation, item: &Sidebar
         }
         SidebarItem::Worktree(row) => draggable_worktree_row(radio, row.clone()),
         SidebarItem::Tab(tab) => draggable_tab(radio, tab.clone()),
-        SidebarItem::NewTab(project_id, compact) => {
-            new_tab_button(station, Some(*project_id), *compact).into_element()
-        }
         SidebarItem::Divider => rect()
             .width(Size::fill())
             .height(Size::px(1.))
@@ -150,7 +152,6 @@ impl Component for TabBar {
                         .filter(|t| t.project == Some(project.id) && t.worktree.is_none())
                         .map(|t| SidebarItem::Tab(tab_button(t))),
                 );
-                items.push(SidebarItem::NewTab(project.id, state.sidebar_collapsed));
             }
             let loose: Vec<SidebarItem> = state
                 .tabs
@@ -171,7 +172,9 @@ impl Component for TabBar {
 
         rect()
             .expanded()
-            .background((20, 20, 20))
+            .background((26, 25, 28))
+            .overflow(Overflow::Clip)
+            .child(sidebar_backdrop())
             .padding(4.)
             .spacing(4.)
             .direction(Direction::Vertical)
@@ -183,7 +186,7 @@ impl Component for TabBar {
                         .width(Size::fill())
                         .height(Size::px(item.size))
                         .padding((0., 0., 4., 0.))
-                        .child(sidebar_item_element(radio, station, &items[item.index]))
+                        .child(sidebar_item_element(radio, &items[item.index]))
                         .into()
                 })
                 .length(length)
@@ -204,7 +207,7 @@ impl Component for TabBar {
 }
 
 fn pill_button(
-    icon: Svg,
+    icon: SvgViewer,
     tooltip: &'static str,
     on_press: impl FnMut(Event<PressEventData>) + 'static,
 ) -> impl IntoElement {
@@ -243,14 +246,40 @@ fn bottom_actions(mut radio: AppRadio, station: AppStation, compact: bool) -> El
             .horizontal()
             .content(Content::flex())
             .spacing(8.)
-            .child(pill_button(svg(lucide::circle_plus()), "New Tab", move |_| {
+            .child(pill_button(SvgViewer::new(lucide::circle_plus()), "New Tab", move |_| {
                 create_plain_tab(station, None);
             }))
-            .child(pill_button(svg(lucide::folder_plus()), "Add Project", move |_| {
+            .child(pill_button(SvgViewer::new(lucide::folder_plus()), "Add Project", move |_| {
                 radio.write_channel(AppChannel::Tabs).modal = Some(Modal::AddProject);
             }))
             .into_element()
     }
+}
+
+/// Soft mesh backdrop made of radial gradient blobs fading to transparent.
+fn sidebar_backdrop() -> Rect {
+    let blob = |left: f32, top: f32, size: f32, r: u8, g: u8, b: u8| {
+        rect()
+            .position(Position::new_absolute().left(left).top(top))
+            .interactive(false)
+            .width(Size::px(size))
+            .height(Size::px(size))
+            .background(
+                RadialGradient::new()
+                    .stop((Color::from_argb(160, r, g, b), 0.))
+                    .stop((Color::from_argb(110, r, g, b), 30.))
+                    .stop((Color::from_argb(50, r, g, b), 62.))
+                    .stop((Color::from_argb(0, r, g, b), 95.)),
+            )
+    };
+    rect()
+        .position(Position::new_absolute().left(0.).top(0.))
+        .interactive(false)
+        .width(Size::fill())
+        .height(Size::fill())
+        .child(blob(-200., -200., 560., 30, 46, 64))
+        .child(blob(-40., 100., 620., 38, 66, 52))
+        .child(blob(-220., 380., 660., 62, 54, 30))
 }
 
 fn drag_preview(content: impl IntoElement) -> Rect {
@@ -321,9 +350,9 @@ fn draggable_worktree_row(mut radio: AppRadio, row: WorktreeRow) -> Element {
                     .spacing(6.)
                     .cross_align(Alignment::Center)
                     .child(
-                        svg(lucide::git_branch())
-                            .width(Size::px(13.))
-                            .height(Size::px(13.))
+                        SvgViewer::new(lucide::git_branch())
+                            .width(Size::px(14.))
+                            .height(Size::px(14.))
                             .stroke((230, 230, 230)),
                     )
                     .child(
@@ -365,7 +394,13 @@ fn menu_item(text: &'static str, mut action: impl FnMut() + 'static) -> MenuButt
         .child(text)
 }
 
-fn open_project_menu(mut radio: AppRadio, id: ProjectId, has_archived: bool, show_archived: bool) {
+fn open_project_menu(
+    event: &Event<PressEventData>,
+    mut radio: AppRadio,
+    id: ProjectId,
+    has_archived: bool,
+    show_archived: bool,
+) {
     let mut menu = Menu::new().child(menu_item("Archive All Worktrees", move || {
         let mut state = radio.write_channel(AppChannel::Tabs);
         let targets: Vec<(String, std::path::PathBuf)> = state
@@ -399,7 +434,26 @@ fn open_project_menu(mut radio: AppRadio, id: ProjectId, has_archived: bool, sho
     menu = menu.child(menu_item("Close Project", move || {
         radio.write_channel(AppChannel::Tabs).remove_project(id);
     }));
-    ContextMenu::open(menu);
+    ContextMenu::open_from_event(event, menu);
+}
+
+fn header_action(
+    icon: SvgViewer,
+    on_press: impl FnMut(Event<PressEventData>) + 'static,
+) -> Element {
+    Button::new()
+        .flat()
+        .width(Size::px(20.))
+        .height(Size::px(20.))
+        .compact()
+        .rounded_full()
+        .on_press(on_press)
+        .child(
+            icon.width(Size::px(14.))
+                .height(Size::px(14.))
+                .stroke((150, 150, 150)),
+        )
+        .into_element()
 }
 
 #[derive(PartialEq, Clone)]
@@ -418,6 +472,7 @@ impl Component for ProjectHeader {
         let has_archived = self.has_archived;
         let show_archived = self.show_archived;
         let mut radio = use_radio(AppChannel::Tabs);
+        let station = use_radio_station::<AppState, AppChannel>();
 
         let chevron = if self.collapsed {
             lucide::chevron_right()
@@ -430,9 +485,8 @@ impl Component for ProjectHeader {
                 .width(Size::fill())
                 .height(Size::fill())
                 .center()
-                .on_secondary_down(move |_| open_project_menu(radio, id, has_archived, show_archived))
                 .child(
-                    svg(chevron)
+                    SvgViewer::new(chevron)
                         .width(Size::px(14.))
                         .height(Size::px(14.))
                         .stroke((150, 150, 150)),
@@ -442,17 +496,17 @@ impl Component for ProjectHeader {
             rect()
                 .width(Size::fill())
                 .horizontal()
+                .content(Content::flex())
                 .cross_align(Alignment::Center)
                 .spacing(6.)
-                .on_secondary_down(move |_| open_project_menu(radio, id, has_archived, show_archived))
                 .child(
-                    svg(chevron)
+                    SvgViewer::new(chevron)
                         .width(Size::px(14.))
                         .height(Size::px(14.))
                         .stroke((150, 150, 150)),
                 )
                 .child(
-                    svg(lucide::folder_git_2())
+                    SvgViewer::new(lucide::folder_git_2())
                         .width(Size::px(14.))
                         .height(Size::px(14.))
                         .stroke((150, 150, 150)),
@@ -465,6 +519,17 @@ impl Component for ProjectHeader {
                         .max_lines(1)
                         .text_overflow(TextOverflow::Ellipsis),
                 )
+                .child(header_action(SvgViewer::new(lucide::circle_plus()), move |e| {
+                    e.stop_propagation();
+                    create_plain_tab(station, Some(id));
+                }))
+                .child(header_action(
+                    SvgViewer::new(lucide::arrow_down_up()),
+                    move |e| {
+                        e.stop_propagation();
+                        radio.write_channel(AppChannel::Tabs).sort_worktrees(id);
+                    },
+                ))
                 .into_element()
         };
 
@@ -474,7 +539,10 @@ impl Component for ProjectHeader {
             .height(Size::px(28.))
             .compact()
             .rounded_lg()
-            .hover_background((45, 45, 45))
+            .hover_background(Color::from_argb(120, 80, 78, 86))
+            .on_secondary_down(move |e: Event<PressEventData>| {
+                open_project_menu(&e, radio, id, has_archived, show_archived)
+            })
             .on_press(move |_| {
                 let mut state = radio.write_channel(AppChannel::Tabs);
                 if let Some(project) = state.project_mut(id) {
@@ -491,6 +559,7 @@ impl Component for ProjectHeader {
 }
 
 fn open_worktree_menu(
+    event: &Event<PressEventData>,
     mut radio: AppRadio,
     project_id: ProjectId,
     worktree: &Worktree,
@@ -529,7 +598,7 @@ fn open_worktree_menu(
             state.set_archived(project_id, list);
         }));
     }
-    ContextMenu::open(menu);
+    ContextMenu::open_from_event(event, menu);
 }
 
 #[derive(PartialEq, Clone, Copy)]
@@ -566,9 +635,9 @@ impl Component for WorktreeRow {
         let outputting = tab.is_some_and(|t| t.outputting);
 
         let background: Color = if is_active {
-            (35, 35, 35).into()
+            Color::from_argb(160, 62, 60, 66)
         } else {
-            (25, 25, 25).into()
+            Color::TRANSPARENT
         };
         let text_color: Color = if self.archived && !is_active {
             (110, 110, 110).into()
@@ -601,8 +670,8 @@ impl Component for WorktreeRow {
             let worktree = worktree.clone();
             let is_main = self.is_main;
             let archived = self.archived;
-            move |_: Event<PressEventData>| {
-                open_worktree_menu(radio, project_id, &worktree, is_main, archived, tab_id);
+            move |e: Event<PressEventData>| {
+                open_worktree_menu(&e, radio, project_id, &worktree, is_main, archived, tab_id);
             }
         };
 
@@ -611,16 +680,15 @@ impl Component for WorktreeRow {
                 .width(Size::fill())
                 .height(Size::fill())
                 .center()
-                .on_secondary_down(open_menu)
                 .child(match tab {
                     Some(..) if outputting => loading_indicator(text_color),
                     Some(tab) => label()
                         .text(format!("{}", tab.index + 1))
                         .font_size(14.)
                         .into_element(),
-                    None => svg(icon)
-                        .width(Size::px(13.))
-                        .height(Size::px(13.))
+                    None => SvgViewer::new(icon)
+                        .width(Size::px(14.))
+                        .height(Size::px(14.))
                         .stroke(text_color)
                         .into_element(),
                 })
@@ -679,7 +747,7 @@ impl Component for WorktreeRow {
                     if outputting && !*hovered.read() {
                         loading_indicator(text_color)
                     } else {
-                        close_button(tab_id, radio, svg(lucide::moon()))
+                        close_button(tab_id, radio, SvgViewer::new(lucide::moon()))
                     }
                 }))
                 .into_element();
@@ -694,16 +762,15 @@ impl Component for WorktreeRow {
                 .spacing(6.)
                 .on_pointer_over(move |_| hovered.set(true))
                 .on_pointer_out(move |_| hovered.set(false))
-                .on_secondary_down(open_menu)
                 .child(
                     rect()
                         .width(Size::px(28.))
                         .height(Size::fill())
                         .center()
                         .child(
-                            svg(icon)
-                                .width(Size::px(13.))
-                                .height(Size::px(13.))
+                            SvgViewer::new(icon)
+                                .width(Size::px(14.))
+                                .height(Size::px(14.))
                                 .stroke(text_color),
                         ),
                 )
@@ -714,12 +781,13 @@ impl Component for WorktreeRow {
 
         Button::new()
             .width(Size::fill())
-            .height(Size::px(if self.compact { 31. } else { 50. }))
+            .height(Size::px(worktree_row_height(self)))
             .flat()
             .rounded_lg()
             .background(background)
-            .hover_background((45, 45, 45))
+            .hover_background(Color::from_argb(120, 80, 78, 86))
             .color(text_color)
+            .on_secondary_down(open_menu)
             .on_press(on_press)
             .ripple()
             .color((230, 230, 230))
@@ -733,7 +801,7 @@ impl Component for WorktreeRow {
 
 /// Shared style for sidebar actions, icon-only when collapsed.
 fn sidebar_action_button(
-    icon: Svg,
+    icon: SvgViewer,
     text: &'static str,
     collapsed: bool,
     on_press: impl FnMut(Event<PressEventData>) + 'static,
@@ -741,9 +809,9 @@ fn sidebar_action_button(
     Button::new()
         .flat()
         .width(Size::fill())
-        .height(Size::px(31.))
+        .height(Size::px(if collapsed { 31. } else { 34. }))
         .rounded_lg()
-        .hover_background((45, 45, 45))
+        .hover_background(Color::from_argb(120, 80, 78, 86))
         .on_press(on_press)
         .color((180, 180, 180))
         .child(if collapsed {
@@ -763,14 +831,15 @@ fn sidebar_action_button(
                 .height(Size::fill())
                 .horizontal()
                 .cross_align(Alignment::Center)
-                .spacing(8.)
-                .padding((0., 0., 0., 10.))
+                .spacing(6.)
                 .child(
-                    icon.width(Size::px(16.))
-                        .height(Size::px(16.))
-                        .stroke((200, 200, 200)),
+                    rect().width(Size::px(28.)).height(Size::fill()).center().child(
+                        icon.width(Size::px(14.))
+                            .height(Size::px(14.))
+                            .stroke((200, 200, 200)),
+                    ),
                 )
-                .child(label().text(text).font_size(14.))
+                .child(label().text(text).font_size(13.))
                 .into_element()
         })
 }
@@ -781,14 +850,14 @@ fn new_tab_button(
     project: Option<ProjectId>,
     collapsed: bool,
 ) -> impl IntoElement {
-    sidebar_action_button(svg(lucide::circle_plus()), "New Tab", collapsed, move |_| {
+    sidebar_action_button(SvgViewer::new(lucide::circle_plus()), "New Tab", collapsed, move |_| {
         create_plain_tab(station, project);
     })
 }
 
 fn add_project_button(mut radio: AppRadio, collapsed: bool) -> impl IntoElement {
     sidebar_action_button(
-        svg(lucide::folder_plus()),
+        SvgViewer::new(lucide::folder_plus()),
         "Add Project",
         collapsed,
         move |_| {
@@ -797,7 +866,7 @@ fn add_project_button(mut radio: AppRadio, collapsed: bool) -> impl IntoElement 
     )
 }
 
-fn close_button(tab_id: TabId, mut radio: AppRadio, icon: Svg) -> Element {
+fn close_button(tab_id: TabId, mut radio: AppRadio, icon: SvgViewer) -> Element {
     Button::new()
         .flat()
         .width(Size::px(20.))
@@ -888,9 +957,9 @@ impl Component for TabButton {
         let mut rename_value = use_state(String::new);
 
         let background: Color = if is_active {
-            (35, 35, 35).into()
+            Color::from_argb(160, 62, 60, 66)
         } else {
-            (25, 25, 25).into()
+            Color::TRANSPARENT
         };
         let text_color: Color = if is_active {
             (230, 230, 230).into()
@@ -929,7 +998,7 @@ impl Component for TabButton {
         };
 
         let trailing = if show_close {
-            close_button(tab_id, radio, svg(lucide::x()))
+            close_button(tab_id, radio, SvgViewer::new(lucide::x()))
         } else {
             loading_indicator(text_color)
         };
@@ -940,8 +1009,26 @@ impl Component for TabButton {
             .flat()
             .rounded_lg()
             .background(background)
-            .hover_background((45, 45, 45))
+            .hover_background(Color::from_argb(120, 80, 78, 86))
             .color(text_color)
+            .on_secondary_down({
+                let custom_title = custom_title.clone();
+                move |e: Event<PressEventData>| {
+                    let custom_title = custom_title.clone();
+                    ContextMenu::open_from_event(
+                        &e,
+                        Menu::new()
+                            .child(menu_item("Rename", move || {
+                                was_focused.set(false);
+                                rename_value.set(custom_title.clone());
+                                editing.set(true);
+                            }))
+                            .child(menu_item("Close", move || {
+                                radio.write_channel(AppChannel::Tabs).close_tab_by_id(tab_id);
+                            })),
+                    );
+                }
+            })
             .on_press(move |_: Event<PressEventData>| {
                 if !is_editing {
                     radio.write_channel(AppChannel::Tabs).switch_to_tab(tab_id);
@@ -973,39 +1060,6 @@ impl Component for TabButton {
                     .main_align(Alignment::SpaceBetween)
                     .on_pointer_over(move |_| hovered.set(true))
                     .on_pointer_out(move |_| hovered.set(false))
-                    .on_secondary_down({
-                        let custom_title = custom_title.clone();
-                        move |_| {
-                            let custom_title = custom_title.clone();
-                            ContextMenu::open(
-                                Menu::new()
-                                    .child(
-                                        MenuButton::new()
-                                            .on_press(move |e: Event<PressEventData>| {
-                                                e.stop_propagation();
-                                                e.prevent_default();
-                                                ContextMenu::close();
-                                                was_focused.set(false);
-                                                rename_value.set(custom_title.clone());
-                                                editing.set(true);
-                                            })
-                                            .child("Rename"),
-                                    )
-                                    .child(
-                                        MenuButton::new()
-                                            .on_press(move |e: Event<PressEventData>| {
-                                                e.stop_propagation();
-                                                e.prevent_default();
-                                                ContextMenu::close();
-                                                radio
-                                                    .write_channel(AppChannel::Tabs)
-                                                    .close_tab_by_id(tab_id);
-                                            })
-                                            .child("Close"),
-                                    ),
-                            );
-                        }
-                    })
                     .child(title_element)
                     .child(trailing)
             })
