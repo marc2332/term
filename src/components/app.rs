@@ -1,40 +1,91 @@
+use std::time::Duration;
+
+use async_io::Timer;
 use freya::prelude::*;
 use freya::radio::*;
 
 use crate::{
-    components::{tab_bar::TabBar, tab_content::TabContent},
-    state::{AppChannel, AppState, NavDirection, watch_panel},
+    components::{
+        modals::ModalHost,
+        tab_bar::TabBar,
+        tab_content::TabContent,
+        welcome::{Welcome, remove_button},
+    },
+    config::Startup,
+    session,
+    state::{
+        AppChannel, AppState, Axis, Modal, NavDirection, create_context_tab, refresh_worktrees,
+        restore_session, split_active_panel,
+    },
 };
 
 #[derive(PartialEq, Clone)]
 pub struct App {
     pub font_size: f32,
     pub shell: String,
+    pub startup: Startup,
 }
 
 impl Component for App {
     fn render(&self) -> impl IntoElement {
         let font_size = self.font_size;
         let shell = self.shell.clone();
+        let startup = self.startup;
 
         use_init_theme(dark_theme);
-        use_init_radio_station::<AppState, AppChannel>(move || {
+        let station = use_init_radio_station::<AppState, AppChannel>(move || {
             AppState::new(font_size, shell.clone())
         });
 
         let mut radio = use_radio(AppChannel::Tabs);
 
-        // Create and watch the initial tab (runs once).
-        use_hook(|| {
-            let mut state = radio.write_channel(AppChannel::Tabs);
-            let (tab_id, panel_id, handle) = state.new_tab();
-            let task = watch_panel(radio, tab_id, panel_id, handle);
-            state
-                .active_tab_mut()
-                .unwrap()
-                .panels
-                .set_task(panel_id, task);
+        use_hook(move || {
+            match startup {
+                Startup::Fresh => create_context_tab(station),
+                Startup::RestoreLast => {
+                    if let Some(saved) = session::load_sessions().first() {
+                        restore_session(station, saved);
+                    }
+                }
+                Startup::Welcome => {}
+            }
+
+            // Autosave: persist the session whenever its content changed.
+            spawn(async move {
+                let mut last: Option<session::Session> = None;
+                loop {
+                    Timer::after(Duration::from_secs(3)).await;
+                    let snapshot = session::capture(&station.peek());
+                    if snapshot.is_empty() {
+                        continue;
+                    }
+                    if last.as_ref().is_none_or(|l| !l.content_eq(&snapshot)) {
+                        session::update_current_session(&snapshot);
+                        last = Some(snapshot);
+                    }
+                }
+            });
+
+            // Keep worktree lists and diff stats fresh.
+            spawn(async move {
+                loop {
+                    Timer::after(Duration::from_secs(10)).await;
+                    let project_ids: Vec<_> =
+                        station.peek().projects.iter().map(|p| p.id).collect();
+                    for project_id in project_ids {
+                        refresh_worktrees(station, project_id);
+                    }
+                }
+            });
         });
+
+        let (show_welcome, notice) = {
+            let state = radio.read();
+            (
+                state.tabs.is_empty() && state.projects.is_empty(),
+                state.notice.clone(),
+            )
+        };
 
         rect()
             .expanded()
@@ -49,17 +100,13 @@ impl Component for App {
 
                 match &e.key {
                     Key::Character(ch) if ctrl_shift && ch.eq_ignore_ascii_case("t") => {
-                        let mut state = radio.write_channel(AppChannel::Tabs);
-                        let (tab_id, panel_id, handle) = state.new_tab();
-                        let task = watch_panel(radio, tab_id, panel_id, handle);
-                        state
-                            .active_tab_mut()
-                            .unwrap()
-                            .panels
-                            .set_task(panel_id, task);
+                        create_context_tab(station);
                     }
                     Key::Character(ch) if ctrl_shift && ch.eq_ignore_ascii_case("w") => {
                         radio.write_channel(AppChannel::Tabs).close_active_tab();
+                    }
+                    Key::Character(ch) if ctrl_shift && ch.eq_ignore_ascii_case("o") => {
+                        radio.write_channel(AppChannel::Tabs).modal = Some(Modal::AddProject);
                     }
                     Key::Named(NamedKey::Tab) if ctrl && !mods.contains(Modifiers::SHIFT) => {
                         radio.write_channel(AppChannel::Tabs).next_tab();
@@ -68,28 +115,10 @@ impl Component for App {
                         radio.write_channel(AppChannel::Tabs).prev_tab();
                     }
                     Key::Character(ch) if alt && ch.eq_ignore_ascii_case("p") => {
-                        let mut state = radio.write_channel(AppChannel::Tabs);
-                        if let Some((panel_id, handle)) = state.split_vertical() {
-                            let tab_id = state.active_tab().unwrap().id;
-                            let task = watch_panel(radio, tab_id, panel_id, handle);
-                            state
-                                .active_tab_mut()
-                                .unwrap()
-                                .panels
-                                .set_task(panel_id, task);
-                        }
+                        split_active_panel(station, Axis::Vertical);
                     }
                     Key::Character(ch) if alt && (ch == "+" || ch == "=") => {
-                        let mut state = radio.write_channel(AppChannel::Tabs);
-                        if let Some((panel_id, handle)) = state.split_horizontal() {
-                            let tab_id = state.active_tab().unwrap().id;
-                            let task = watch_panel(radio, tab_id, panel_id, handle);
-                            state
-                                .active_tab_mut()
-                                .unwrap()
-                                .panels
-                                .set_task(panel_id, task);
-                        }
+                        split_active_panel(station, Axis::Horizontal);
                     }
                     Key::Character(ch) if alt && ch == "-" => {
                         radio.write_channel(AppChannel::Tabs).close_active_panel();
@@ -132,29 +161,62 @@ impl Component for App {
                 }
             })
             .child(ContextMenuViewer::new())
-            .child(if radio.read().sidebar_collapsed {
+            .child(ModalHost)
+            .child(
                 rect()
-                    .expanded()
-                    .horizontal()
-                    .child(
+                    .width(Size::fill())
+                    .height(Size::flex(1.))
+                    .child(if show_welcome {
+                        Welcome.into_element()
+                    } else if radio.read().sidebar_collapsed {
                         rect()
-                            .width(Size::px(40.))
-                            .height(Size::fill())
-                            .child(TabBar),
-                    )
-                    .child(
-                        rect()
-                            .width(Size::flex(1.))
-                            .height(Size::fill())
-                            .child(TabContent),
-                    )
-                    .into_element()
-            } else {
-                ResizableContainer::new()
-                    .direction(Direction::Horizontal)
-                    .panel(ResizablePanel::new(PanelSize::px(200.)).child(TabBar))
-                    .panel(ResizablePanel::new(PanelSize::percent(100.)).child(TabContent))
-                    .into_element()
+                            .expanded()
+                            .horizontal()
+                            .child(
+                                rect()
+                                    .width(Size::px(40.))
+                                    .height(Size::fill())
+                                    .child(TabBar),
+                            )
+                            .child(
+                                rect()
+                                    .width(Size::flex(1.))
+                                    .height(Size::fill())
+                                    .child(TabContent),
+                            )
+                            .into_element()
+                    } else {
+                        ResizableContainer::new()
+                            .direction(Direction::Horizontal)
+                            .panel(
+                                ResizablePanel::new(PanelSize::px(200.))
+                                    .min_size(120.)
+                                    .child(TabBar),
+                            )
+                            .panel(ResizablePanel::new(PanelSize::percent(100.)).child(TabContent))
+                            .into_element()
+                    }),
+            )
+            .map(notice, |el, notice| {
+                el.child(
+                    rect()
+                        .width(Size::fill())
+                        .horizontal()
+                        .cross_align(Alignment::Center)
+                        .spacing(8.)
+                        .padding(8.)
+                        .background((45, 30, 30))
+                        .child(
+                            label()
+                                .text(notice)
+                                .font_size(13.)
+                                .color((235, 180, 180))
+                                .max_lines(2),
+                        )
+                        .child(remove_button((200, 200, 200), move |_| {
+                            radio.write_channel(AppChannel::Tabs).notice = None;
+                        })),
+                )
             })
     }
 }

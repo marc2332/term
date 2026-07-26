@@ -16,7 +16,11 @@ impl Component for TabContent {
         let font_size = state.font_size;
 
         if let Some(tab) = state.tabs.get(state.active_tab) {
-            render_node(&tab.panels, font_size, &tab.id).into_element()
+            rect()
+                .expanded()
+                .background((45, 45, 45))
+                .child(render_node(&tab.panels, font_size, &tab.id))
+                .into_element()
         } else {
             rect().expanded().into_element()
         }
