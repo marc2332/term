@@ -753,7 +753,12 @@ impl AppState {
                     .map(|t| t.id),
             );
         }
-        order.extend(self.tabs.iter().filter(|t| t.project.is_none()).map(|t| t.id));
+        order.extend(
+            self.tabs
+                .iter()
+                .filter(|t| t.project.is_none())
+                .map(|t| t.id),
+        );
         order
     }
 
@@ -1177,7 +1182,10 @@ pub fn restore_session(mut station: AppStation, saved: &Session) {
     spawn_forever(async move {
         let roots: Vec<PathBuf> = saved_projects.iter().map(|p| p.root.clone()).collect();
         let results = git::run_async(move || {
-            Ok(roots.iter().map(|r| git::detect_project(r)).collect::<Vec<_>>())
+            Ok(roots
+                .iter()
+                .map(|r| git::detect_project(r))
+                .collect::<Vec<_>>())
         })
         .await
         .unwrap_or_default();

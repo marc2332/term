@@ -179,8 +179,7 @@ pub async fn run_async<T: Send + 'static>(
     std::thread::spawn(move || {
         let _ = tx.send(f());
     });
-    rx.await
-        .map_err(|_| "background task failed".to_string())?
+    rx.await.map_err(|_| "background task failed".to_string())?
 }
 
 #[cfg(test)]
@@ -200,13 +199,20 @@ mod tests {
     }
 
     fn make_project(name: &str) -> PathBuf {
-        let root = std::env::temp_dir().join(format!("marcterm-test-{name}-{}", std::process::id()));
+        let root =
+            std::env::temp_dir().join(format!("marcterm-test-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         let trunk = root.join("trunk");
         std::fs::create_dir_all(&trunk).unwrap();
         sh(&trunk, "git init -q -b main");
-        sh(&trunk, "git config user.email test@test && git config user.name Test");
-        sh(&trunk, "echo hello > file.txt && git add . && git commit -qm init");
+        sh(
+            &trunk,
+            "git config user.email test@test && git config user.name Test",
+        );
+        sh(
+            &trunk,
+            "echo hello > file.txt && git add . && git commit -qm init",
+        );
         root
     }
 
@@ -248,13 +254,20 @@ mod tests {
 
     #[test]
     fn generic_repo() {
-        let base = std::env::temp_dir().join(format!("marcterm-test-generic-{}", std::process::id()));
+        let base =
+            std::env::temp_dir().join(format!("marcterm-test-generic-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&base);
         let repo = base.join("myrepo");
         std::fs::create_dir_all(&repo).unwrap();
         sh(&repo, "git init -q -b main");
-        sh(&repo, "git config user.email test@test && git config user.name Test");
-        sh(&repo, "echo hi > file.txt && git add . && git commit -qm init");
+        sh(
+            &repo,
+            "git config user.email test@test && git config user.name Test",
+        );
+        sh(
+            &repo,
+            "echo hi > file.txt && git add . && git commit -qm init",
+        );
 
         let info = detect_project(&repo).unwrap();
         assert_eq!(info.root, repo);
@@ -262,7 +275,10 @@ mod tests {
         assert_eq!(info.name, "myrepo");
         assert!(project_exists(&repo));
 
-        sh(&repo, "git worktree add -q -b feature ../elsewhere/feature-wt");
+        sh(
+            &repo,
+            "git worktree add -q -b feature ../elsewhere/feature-wt",
+        );
         let wt_path = base.join("elsewhere/feature-wt");
         assert_eq!(detect_project(&wt_path).unwrap().root, repo);
 

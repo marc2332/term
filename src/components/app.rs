@@ -193,9 +193,7 @@ impl Component for App {
                                     .min_size(120.)
                                     .child(TabBar),
                             )
-                            .panel(
-                                ResizablePanel::new(PanelSize::percent(100.)).child(TabContent),
-                            )
+                            .panel(ResizablePanel::new(PanelSize::percent(100.)).child(TabContent))
                             .into_element()
                     }),
             )

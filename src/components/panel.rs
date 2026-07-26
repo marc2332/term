@@ -76,6 +76,7 @@ impl Component for Panel {
         rect()
             .expanded()
             .padding(8.)
+            .corner_radius(8.)
             .background(bg_color)
             .border(border)
             .a11y_id(panel_id)

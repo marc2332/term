@@ -27,71 +27,68 @@ impl Component for Welcome {
         });
         let sessions = use_state(session::load_sessions);
 
-        rect()
-            .expanded()
-            .center()
-            .child(
-                rect()
-                    .width(Size::px(520.))
-                    .vertical()
-                    .spacing(20.)
-                    .child(
-                        label()
-                            .text("marcterm")
-                            .font_size(26.)
-                            .color((230, 230, 230)),
+        rect().expanded().center().child(
+            rect()
+                .width(Size::px(520.))
+                .vertical()
+                .spacing(20.)
+                .child(
+                    label()
+                        .text("marcterm")
+                        .font_size(26.)
+                        .color((230, 230, 230)),
+                )
+                .child(
+                    rect()
+                        .width(Size::fill())
+                        .horizontal()
+                        .spacing(8.)
+                        .child(welcome_button(
+                            SvgViewer::new(lucide::folder_plus()),
+                            "Open Project",
+                            false,
+                            move |_| {
+                                radio.write_channel(AppChannel::Tabs).modal =
+                                    Some(Modal::AddProject);
+                            },
+                        ))
+                        .child(welcome_button(
+                            SvgViewer::new(lucide::terminal()),
+                            "New Terminal",
+                            true,
+                            move |_| create_tab(station, None, None, None),
+                        )),
+                )
+                .maybe(!recent.read().is_empty(), |el| {
+                    el.child(section_title("Recent projects")).child(
+                        rect().width(Size::fill()).vertical().spacing(2.).children(
+                            recent
+                                .read()
+                                .iter()
+                                .map(|(root, exists)| RecentProjectRow {
+                                    root: root.clone(),
+                                    exists: *exists,
+                                    recent,
+                                })
+                                .map(IntoElement::into_element),
+                        ),
                     )
-                    .child(
-                        rect()
-                            .width(Size::fill())
-                            .horizontal()
-                            .spacing(8.)
-                            .child(welcome_button(
-                                SvgViewer::new(lucide::folder_plus()),
-                                "Open Project",
-                                false,
-                                move |_| {
-                                    radio.write_channel(AppChannel::Tabs).modal =
-                                        Some(Modal::AddProject);
-                                },
-                            ))
-                            .child(welcome_button(
-                                SvgViewer::new(lucide::terminal()),
-                                "New Terminal",
-                                true,
-                                move |_| create_tab(station, None, None, None),
-                            )),
+                })
+                .maybe(!sessions.read().is_empty(), |el| {
+                    el.child(section_title("Recent sessions")).child(
+                        rect().width(Size::fill()).vertical().spacing(2.).children(
+                            sessions
+                                .read()
+                                .iter()
+                                .map(|s| SessionRow {
+                                    session: s.clone(),
+                                    sessions,
+                                })
+                                .map(IntoElement::into_element),
+                        ),
                     )
-                    .maybe(!recent.read().is_empty(), |el| {
-                        el.child(section_title("Recent projects")).child(
-                            rect().width(Size::fill()).vertical().spacing(2.).children(
-                                recent
-                                    .read()
-                                    .iter()
-                                    .map(|(root, exists)| RecentProjectRow {
-                                        root: root.clone(),
-                                        exists: *exists,
-                                        recent,
-                                    })
-                                    .map(IntoElement::into_element),
-                            ),
-                        )
-                    })
-                    .maybe(!sessions.read().is_empty(), |el| {
-                        el.child(section_title("Recent sessions")).child(
-                            rect().width(Size::fill()).vertical().spacing(2.).children(
-                                sessions
-                                    .read()
-                                    .iter()
-                                    .map(|s| SessionRow {
-                                        session: s.clone(),
-                                        sessions,
-                                    })
-                                    .map(IntoElement::into_element),
-                            ),
-                        )
-                    }),
-            )
+                }),
+        )
     }
 }
 

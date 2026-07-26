@@ -32,11 +32,12 @@ enum SidebarItem {
 }
 
 fn worktree_row_height(row: &WorktreeRow) -> f32 {
+    let dirty = row.worktree.diff.is_some_and(|d| !d.is_clean());
     if row.compact {
         31.
     } else if row.tab.is_some() {
-        50.
-    } else if row.worktree.diff.is_some_and(|d| !d.is_clean()) {
+        if dirty { 50. } else { 44. }
+    } else if dirty {
         44.
     } else {
         34.
@@ -127,7 +128,9 @@ impl Component for TabBar {
                     continue;
                 }
                 for entry in state.worktree_entries(project) {
-                    let open_tab = entry.tab.and_then(|id| state.tabs.iter().find(|t| t.id == id));
+                    let open_tab = entry
+                        .tab
+                        .and_then(|id| state.tabs.iter().find(|t| t.id == id));
                     items.push(SidebarItem::Worktree(WorktreeRow {
                         project_id: project.id,
                         is_main: entry.worktree.is_main,
@@ -215,19 +218,19 @@ fn pill_button(
         TooltipContainer::new(Tooltip::new(tooltip))
             .position(AttachedPosition::Top)
             .child(
-            Button::new()
-                .flat()
-                .rounded_full()
-                .width(Size::fill())
-                .on_press(on_press)
-                .color((200, 200, 200))
-                .child(
-                    rect().width(Size::fill()).center().child(
-                        icon.width(Size::px(15.))
-                            .height(Size::px(15.))
-                            .stroke((200, 200, 200)),
+                Button::new()
+                    .flat()
+                    .rounded_full()
+                    .width(Size::fill())
+                    .on_press(on_press)
+                    .color((200, 200, 200))
+                    .child(
+                        rect().width(Size::fill()).center().child(
+                            icon.width(Size::px(15.))
+                                .height(Size::px(15.))
+                                .stroke((200, 200, 200)),
+                        ),
                     ),
-                ),
             ),
     )
 }
@@ -246,12 +249,20 @@ fn bottom_actions(mut radio: AppRadio, station: AppStation, compact: bool) -> El
             .horizontal()
             .content(Content::flex())
             .spacing(8.)
-            .child(pill_button(SvgViewer::new(lucide::circle_plus()), "New Tab", move |_| {
-                create_plain_tab(station, None);
-            }))
-            .child(pill_button(SvgViewer::new(lucide::folder_plus()), "Add Project", move |_| {
-                radio.write_channel(AppChannel::Tabs).modal = Some(Modal::AddProject);
-            }))
+            .child(pill_button(
+                SvgViewer::new(lucide::circle_plus()),
+                "New Tab",
+                move |_| {
+                    create_plain_tab(station, None);
+                },
+            ))
+            .child(pill_button(
+                SvgViewer::new(lucide::folder_plus()),
+                "Add Project",
+                move |_| {
+                    radio.write_channel(AppChannel::Tabs).modal = Some(Modal::AddProject);
+                },
+            ))
             .into_element()
     }
 }
@@ -323,9 +334,11 @@ fn draggable_tab(mut radio: AppRadio, tab: TabButton) -> Element {
     );
     rect()
         .width(Size::fill())
-        .child(TooltipContainer::new(Tooltip::new(tooltip))
+        .child(
+            TooltipContainer::new(Tooltip::new(tooltip))
                 .position(AttachedPosition::Right)
-                .child(zone))
+                .child(zone),
+        )
         .key(&("tab", drop_tab_id.0))
         .into_element()
 }
@@ -369,16 +382,20 @@ fn draggable_worktree_row(mut radio: AppRadio, row: WorktreeRow) -> Element {
         if let DragPayload::Worktree(dragged_project, dragged_name) = payload
             && dragged_project == project_id
         {
-            radio
-                .write_channel(AppChannel::Tabs)
-                .reorder_worktree(project_id, &dragged_name, &target_name);
+            radio.write_channel(AppChannel::Tabs).reorder_worktree(
+                project_id,
+                &dragged_name,
+                &target_name,
+            );
         }
     });
     rect()
         .width(Size::fill())
-        .child(TooltipContainer::new(Tooltip::new(tooltip))
+        .child(
+            TooltipContainer::new(Tooltip::new(tooltip))
                 .position(AttachedPosition::Right)
-                .child(zone))
+                .child(zone),
+        )
         .key(&("worktree", project_id.0, row_key))
         .into_element()
 }
@@ -425,10 +442,14 @@ fn open_project_menu(
             "Show Archived Worktrees"
         };
         menu = menu.child(menu_item(label, move || {
-            radio.write_channel(AppChannel::Tabs).toggle_show_archived(id);
+            radio
+                .write_channel(AppChannel::Tabs)
+                .toggle_show_archived(id);
         }));
         menu = menu.child(menu_item("Unarchive All Worktrees", move || {
-            radio.write_channel(AppChannel::Tabs).set_archived(id, vec![]);
+            radio
+                .write_channel(AppChannel::Tabs)
+                .set_archived(id, vec![]);
         }));
     }
     menu = menu.child(menu_item("Close Project", move || {
@@ -519,10 +540,13 @@ impl Component for ProjectHeader {
                         .max_lines(1)
                         .text_overflow(TextOverflow::Ellipsis),
                 )
-                .child(header_action(SvgViewer::new(lucide::circle_plus()), move |e| {
-                    e.stop_propagation();
-                    create_plain_tab(station, Some(id));
-                }))
+                .child(header_action(
+                    SvgViewer::new(lucide::circle_plus()),
+                    move |e| {
+                        e.stop_propagation();
+                        create_plain_tab(station, Some(id));
+                    },
+                ))
                 .child(header_action(
                     SvgViewer::new(lucide::arrow_down_up()),
                     move |e| {
@@ -570,7 +594,9 @@ fn open_worktree_menu(
     let mut menu = Menu::new();
     if let Some(tab_id) = tab_id {
         menu = menu.child(menu_item("Close Tab", move || {
-            radio.write_channel(AppChannel::Tabs).close_tab_by_id(tab_id);
+            radio
+                .write_channel(AppChannel::Tabs)
+                .close_tab_by_id(tab_id);
         }));
     }
     if !is_main {
@@ -833,11 +859,15 @@ fn sidebar_action_button(
                 .cross_align(Alignment::Center)
                 .spacing(6.)
                 .child(
-                    rect().width(Size::px(28.)).height(Size::fill()).center().child(
-                        icon.width(Size::px(14.))
-                            .height(Size::px(14.))
-                            .stroke((200, 200, 200)),
-                    ),
+                    rect()
+                        .width(Size::px(28.))
+                        .height(Size::fill())
+                        .center()
+                        .child(
+                            icon.width(Size::px(14.))
+                                .height(Size::px(14.))
+                                .stroke((200, 200, 200)),
+                        ),
                 )
                 .child(label().text(text).font_size(13.))
                 .into_element()
@@ -850,9 +880,14 @@ fn new_tab_button(
     project: Option<ProjectId>,
     collapsed: bool,
 ) -> impl IntoElement {
-    sidebar_action_button(SvgViewer::new(lucide::circle_plus()), "New Tab", collapsed, move |_| {
-        create_plain_tab(station, project);
-    })
+    sidebar_action_button(
+        SvgViewer::new(lucide::circle_plus()),
+        "New Tab",
+        collapsed,
+        move |_| {
+            create_plain_tab(station, project);
+        },
+    )
 }
 
 fn add_project_button(mut radio: AppRadio, collapsed: bool) -> impl IntoElement {
@@ -1024,7 +1059,9 @@ impl Component for TabButton {
                                 editing.set(true);
                             }))
                             .child(menu_item("Close", move || {
-                                radio.write_channel(AppChannel::Tabs).close_tab_by_id(tab_id);
+                                radio
+                                    .write_channel(AppChannel::Tabs)
+                                    .close_tab_by_id(tab_id);
                             })),
                     );
                 }
