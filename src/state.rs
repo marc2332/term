@@ -762,7 +762,6 @@ impl AppState {
         order
     }
 
-    /// Whether cycling can land on this tab. Collapsed projects hide theirs.
     fn is_cyclable(&self, tab_id: TabId) -> bool {
         let Some(tab) = self.tabs.iter().find(|t| t.id == tab_id) else {
             return false;
@@ -782,7 +781,6 @@ impl AppState {
             .get(self.active_tab)
             .and_then(|tab| order.iter().position(|id| *id == tab.id))
             .unwrap_or(0);
-        // Walk until a visible tab, so the active tab can be in a collapsed project too.
         let len = order.len();
         for step in 1..=len {
             let index = if forward {

@@ -408,7 +408,7 @@ fn menu_item(text: &'static str, mut action: impl FnMut() + 'static) -> MenuButt
             ContextMenu::close();
             action();
         })
-        .child(text)
+        .child(label().text(text).font_size(14.))
 }
 
 fn open_project_menu(
@@ -593,7 +593,7 @@ fn open_worktree_menu(
 ) {
     let mut menu = Menu::new();
     if let Some(tab_id) = tab_id {
-        menu = menu.child(menu_item("Close Tab", move || {
+        menu = menu.child(menu_item("Sleep", move || {
             radio
                 .write_channel(AppChannel::Tabs)
                 .close_tab_by_id(tab_id);
@@ -766,18 +766,21 @@ impl Component for WorktreeRow {
                     )
                 });
 
-            // Fixed slot, the layout must not shift when a tab opens or closes.
-            let trailing: Element = rect()
-                .width(Size::px(20.))
-                .height(Size::px(20.))
-                .maybe_child(tab_id.map(|tab_id| {
-                    if outputting && !*hovered.read() {
-                        loading_indicator(text_color)
-                    } else {
+            let leading = rect()
+                .width(Size::px(28.))
+                .height(Size::fill())
+                .center()
+                .child(match tab_id {
+                    Some(tab_id) if *hovered.read() => {
                         close_button(tab_id, radio, SvgViewer::new(lucide::moon()))
                     }
-                }))
-                .into_element();
+                    Some(_) if outputting => loading_indicator(text_color),
+                    _ => SvgViewer::new(icon)
+                        .width(Size::px(14.))
+                        .height(Size::px(14.))
+                        .stroke(text_color)
+                        .into_element(),
+                });
 
             rect()
                 .width(Size::fill())
@@ -787,38 +790,31 @@ impl Component for WorktreeRow {
                 .content(Content::flex())
                 .cross_align(Alignment::Center)
                 .spacing(6.)
-                .on_pointer_over(move |_| hovered.set(true))
-                .on_pointer_out(move |_| hovered.set(false))
-                .child(
-                    rect()
-                        .width(Size::px(28.))
-                        .height(Size::fill())
-                        .center()
-                        .child(
-                            SvgViewer::new(icon)
-                                .width(Size::px(14.))
-                                .height(Size::px(14.))
-                                .stroke(text_color),
-                        ),
-                )
+                .child(leading)
                 .child(name_block)
-                .child(trailing)
                 .into_element()
         };
 
-        Button::new()
+        rect()
             .width(Size::fill())
             .height(Size::px(worktree_row_height(self)))
-            .flat()
-            .rounded_lg()
-            .background(background)
-            .hover_background(Color::from_argb(120, 80, 78, 86))
-            .color(text_color)
-            .on_secondary_down(open_menu)
-            .on_press(on_press)
-            .ripple()
-            .color((230, 230, 230))
-            .child(content)
+            .on_pointer_over(move |_| hovered.set(true))
+            .on_pointer_out(move |_| hovered.set(false))
+            .child(
+                Button::new()
+                    .width(Size::fill())
+                    .height(Size::fill())
+                    .flat()
+                    .rounded_lg()
+                    .background(background)
+                    .hover_background(Color::from_argb(120, 80, 78, 86))
+                    .color(text_color)
+                    .on_secondary_down(open_menu)
+                    .on_press(on_press)
+                    .ripple()
+                    .color((230, 230, 230))
+                    .child(content),
+            )
     }
 
     fn render_key(&self) -> DiffKey {
@@ -1039,9 +1035,9 @@ impl Component for TabButton {
             loading_indicator(text_color)
         };
 
-        Button::new()
+        let button = Button::new()
             .width(Size::fill())
-            .height(Size::px(31.))
+            .height(Size::fill())
             .flat()
             .rounded_lg()
             .background(background)
@@ -1097,11 +1093,16 @@ impl Component for TabButton {
                     .content(Content::flex())
                     .cross_align(Alignment::Center)
                     .main_align(Alignment::SpaceBetween)
-                    .on_pointer_over(move |_| hovered.set(true))
-                    .on_pointer_out(move |_| hovered.set(false))
                     .child(title_element)
                     .child(trailing)
-            })
+            });
+
+        rect()
+            .width(Size::fill())
+            .height(Size::px(31.))
+            .on_pointer_over(move |_| hovered.set(true))
+            .on_pointer_out(move |_| hovered.set(false))
+            .child(button)
     }
 
     fn render_key(&self) -> DiffKey {
