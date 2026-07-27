@@ -387,13 +387,7 @@ fn menu_item(text: &'static str, mut action: impl FnMut() + 'static) -> MenuButt
         .child(label().text(text).font_size(14.))
 }
 
-fn open_project_menu(
-    event: &Event<PressEventData>,
-    mut radio: AppRadio,
-    id: ProjectId,
-    has_archived: bool,
-    show_archived: bool,
-) {
+fn open_project_menu(mut radio: AppRadio, id: ProjectId, has_archived: bool, show_archived: bool) {
     let mut menu = Menu::new().child(menu_item("Archive All Worktrees", move || {
         let mut state = radio.write_channel(AppChannel::Tabs);
         let targets: Vec<(String, std::path::PathBuf)> = state
@@ -431,7 +425,7 @@ fn open_project_menu(
     menu = menu.child(menu_item("Close Project", move || {
         radio.write_channel(AppChannel::Tabs).remove_project(id);
     }));
-    ContextMenu::open_from_event(event, menu);
+    ContextMenu::open_from_down(menu);
 }
 
 fn header_action(
@@ -540,8 +534,8 @@ impl Component for ProjectHeader {
             .compact()
             .rounded_lg()
             .hover_background(Color::from_argb(120, 80, 78, 86))
-            .on_secondary_down(move |e: Event<PressEventData>| {
-                open_project_menu(&e, radio, id, has_archived, show_archived)
+            .on_secondary_down(move |_: Event<PressEventData>| {
+                open_project_menu(radio, id, has_archived, show_archived)
             })
             .on_press(move |_| {
                 let mut state = radio.write_channel(AppChannel::Tabs);
@@ -559,7 +553,6 @@ impl Component for ProjectHeader {
 }
 
 fn open_worktree_menu(
-    event: &Event<PressEventData>,
     mut radio: AppRadio,
     project_id: ProjectId,
     worktree: &Worktree,
@@ -600,7 +593,7 @@ fn open_worktree_menu(
             state.set_archived(project_id, list);
         }));
     }
-    ContextMenu::open_from_event(event, menu);
+    ContextMenu::open_from_down(menu);
 }
 
 #[derive(PartialEq, Clone, Copy)]
@@ -672,8 +665,8 @@ impl Component for WorktreeRow {
             let worktree = worktree.clone();
             let is_main = self.is_main;
             let archived = self.archived;
-            move |e: Event<PressEventData>| {
-                open_worktree_menu(&e, radio, project_id, &worktree, is_main, archived, tab_id);
+            move |_: Event<PressEventData>| {
+                open_worktree_menu(radio, project_id, &worktree, is_main, archived, tab_id);
             }
         };
 
@@ -1021,10 +1014,9 @@ impl Component for TabButton {
             .color(text_color)
             .on_secondary_down({
                 let custom_title = custom_title.clone();
-                move |e: Event<PressEventData>| {
+                move |_: Event<PressEventData>| {
                     let custom_title = custom_title.clone();
-                    ContextMenu::open_from_event(
-                        &e,
+                    ContextMenu::open_from_down(
                         Menu::new()
                             .child(menu_item("Rename", move || {
                                 was_focused.set(false);
