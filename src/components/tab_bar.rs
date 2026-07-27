@@ -425,7 +425,7 @@ fn open_project_menu(mut radio: AppRadio, id: ProjectId, has_archived: bool, sho
     menu = menu.child(menu_item("Close Project", move || {
         radio.write_channel(AppChannel::Tabs).remove_project(id);
     }));
-    ContextMenu::open_from_down(menu);
+    ContextMenu::open(menu);
 }
 
 fn header_action(
@@ -593,7 +593,7 @@ fn open_worktree_menu(
             state.set_archived(project_id, list);
         }));
     }
-    ContextMenu::open_from_down(menu);
+    ContextMenu::open(menu);
 }
 
 #[derive(PartialEq, Clone, Copy)]
@@ -1016,7 +1016,7 @@ impl Component for TabButton {
                 let custom_title = custom_title.clone();
                 move |_: Event<PressEventData>| {
                     let custom_title = custom_title.clone();
-                    ContextMenu::open_from_down(
+                    ContextMenu::open(
                         Menu::new()
                             .child(menu_item("Rename", move || {
                                 was_focused.set(false);
