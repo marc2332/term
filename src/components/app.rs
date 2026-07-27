@@ -7,8 +7,10 @@ use freya::radio::*;
 use crate::{
     components::{
         modals::ModalHost,
+        resizing::{ResizeBands, use_edge_to_edge},
         tab_bar::TabBar,
         tab_content::TabContent,
+        titlebar::Titlebar,
         welcome::{Welcome, remove_button},
     },
     config::Startup,
@@ -32,7 +34,18 @@ impl Component for App {
         let shell = self.shell.clone();
         let startup = self.startup;
 
-        use_init_theme(dark_theme);
+        use_init_theme(|| {
+            let mut theme = dark_theme();
+            theme.set(
+                "resizable_handle",
+                ResizableHandleThemePreference {
+                    background: Preference::Specific(Color::TRANSPARENT),
+                    hover_background: Preference::Specific(Color::TRANSPARENT),
+                    corner_radius: Preference::Specific(CornerRadius::new_all(0.)),
+                },
+            );
+            theme
+        });
         let station = use_init_radio_station::<AppState, AppChannel>(move || {
             AppState::new(font_size, shell.clone())
         });
@@ -79,6 +92,8 @@ impl Component for App {
             });
         });
 
+        let edge_to_edge = use_edge_to_edge();
+
         let (show_welcome, notice) = {
             let state = radio.read();
             (
@@ -91,6 +106,8 @@ impl Component for App {
             .expanded()
             .background((15, 15, 15))
             .color((220, 220, 220))
+            .corner_radius(CornerRadius::new_all(if edge_to_edge() { 0. } else { 12. }))
+            .overflow(Overflow::Clip)
             .direction(Direction::Vertical)
             .on_key_down(move |e: Event<KeyboardEventData>| {
                 let mods = e.modifiers;
@@ -160,6 +177,7 @@ impl Component for App {
                     _ => {}
                 }
             })
+            .child(app_backdrop())
             .child(ContextMenuViewer::new())
             .child(ModalHost)
             .child(
@@ -167,7 +185,13 @@ impl Component for App {
                     .width(Size::fill())
                     .height(Size::flex(1.))
                     .child(if show_welcome {
-                        Welcome.into_element()
+                        rect()
+                            .expanded()
+                            .vertical()
+                            .padding((4., 4., 0., 4.))
+                            .child(Titlebar { compact: false })
+                            .child(Welcome)
+                            .into_element()
                     } else if radio.read().sidebar_collapsed {
                         rect()
                             .expanded()
@@ -190,7 +214,7 @@ impl Component for App {
                             .direction(Direction::Horizontal)
                             .panel(
                                 ResizablePanel::new(PanelSize::px(200.))
-                                    .min_size(120.)
+                                    .min_size(138.)
                                     .child(TabBar),
                             )
                             .panel(ResizablePanel::new(PanelSize::percent(100.)).child(TabContent))
@@ -218,5 +242,40 @@ impl Component for App {
                         })),
                 )
             })
+            .child(ResizeBands { thickness: 6. })
     }
+}
+
+/// Soft mesh backdrop made of radial gradient blobs fading to transparent.
+fn app_backdrop() -> Rect {
+    let blob = |position: Position, size: f32, r: u8, g: u8, b: u8| {
+        rect()
+            .position(position)
+            .interactive(false)
+            .width(Size::px(size))
+            .height(Size::px(size))
+            .background(
+                RadialGradient::new()
+                    .stop((Color::from_argb(160, r, g, b), 0.))
+                    .stop((Color::from_argb(110, r, g, b), 30.))
+                    .stop((Color::from_argb(50, r, g, b), 62.))
+                    .stop((Color::from_argb(0, r, g, b), 95.)),
+            )
+    };
+    let window = *Platform::get().root_size.read();
+    let at = |left: f32, top: f32| Position::new_absolute().left(left).top(top);
+    let from_right = |right: f32, top: f32| Position::new_absolute().right(right).top(top);
+    let centered = |size: f32, top: f32| at(window.width / 2. - size / 2., top);
+
+    rect()
+        .position(at(0., 0.))
+        .interactive(false)
+        .width(Size::fill())
+        .height(Size::fill())
+        .child(blob(at(-200., -200.), 560., 30, 46, 64))
+        .child(blob(at(-40., 100.), 620., 38, 66, 52))
+        .child(blob(at(-220., 380.), 660., 62, 54, 30))
+        .child(blob(centered(600., -260.), 600., 44, 38, 72))
+        .child(blob(centered(640., window.height - 380.), 640., 28, 58, 62))
+        .child(blob(from_right(-200., 120.), 600., 58, 36, 60))
 }

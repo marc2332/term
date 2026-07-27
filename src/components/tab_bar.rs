@@ -5,6 +5,7 @@ use freya::radio::*;
 
 use std::collections::HashMap;
 
+use crate::components::titlebar::Titlebar;
 use crate::git::Worktree;
 use crate::state::{
     AppChannel, AppState, AppStation, Modal, ProjectId, TabId, create_plain_tab, create_tab,
@@ -175,13 +176,14 @@ impl Component for TabBar {
 
         rect()
             .expanded()
-            .background((26, 25, 28))
             .overflow(Overflow::Clip)
-            .child(sidebar_backdrop())
             .padding(4.)
             .spacing(4.)
             .direction(Direction::Vertical)
             .content(Content::flex())
+            .child(Titlebar {
+                compact: sidebar_collapsed,
+            })
             .child(
                 VirtualScrollView::new(move |item, _| {
                     rect()
@@ -265,32 +267,6 @@ fn bottom_actions(mut radio: AppRadio, station: AppStation, compact: bool) -> El
             ))
             .into_element()
     }
-}
-
-/// Soft mesh backdrop made of radial gradient blobs fading to transparent.
-fn sidebar_backdrop() -> Rect {
-    let blob = |left: f32, top: f32, size: f32, r: u8, g: u8, b: u8| {
-        rect()
-            .position(Position::new_absolute().left(left).top(top))
-            .interactive(false)
-            .width(Size::px(size))
-            .height(Size::px(size))
-            .background(
-                RadialGradient::new()
-                    .stop((Color::from_argb(160, r, g, b), 0.))
-                    .stop((Color::from_argb(110, r, g, b), 30.))
-                    .stop((Color::from_argb(50, r, g, b), 62.))
-                    .stop((Color::from_argb(0, r, g, b), 95.)),
-            )
-    };
-    rect()
-        .position(Position::new_absolute().left(0.).top(0.))
-        .interactive(false)
-        .width(Size::fill())
-        .height(Size::fill())
-        .child(blob(-200., -200., 560., 30, 46, 64))
-        .child(blob(-40., 100., 620., 38, 66, 52))
-        .child(blob(-220., 380., 660., 62, 54, 30))
 }
 
 fn drag_preview(content: impl IntoElement) -> Rect {

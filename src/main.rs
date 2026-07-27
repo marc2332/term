@@ -58,6 +58,9 @@ fn main() {
             startup: config.startup,
         })
         .with_title("marcterm")
+        .with_decorations(false)
+        .with_transparency(true)
+        .with_background(Color::TRANSPARENT)
         .with_app_id("io.marc.term")
         .with_size(1024., 768.)
         .with_icon(LaunchConfig::window_icon(include_bytes!("../icon.png"))),

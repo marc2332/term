@@ -66,9 +66,9 @@ impl Component for Panel {
             let border_color: Color = if is_active {
                 (120, 120, 120).into()
             } else {
-                (40, 40, 40).into()
+                (45, 45, 45).into()
             };
-            Some(Border::new().fill(border_color).width(1.0))
+            Some(Border::new().fill(border_color).width(2.0))
         } else {
             None
         };

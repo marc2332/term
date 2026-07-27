@@ -19,6 +19,8 @@ impl Component for TabContent {
             rect()
                 .expanded()
                 .background((45, 45, 45))
+                .padding(4.)
+                .corner_radius(10.)
                 .child(render_node(&tab.panels, font_size, &tab.id))
                 .into_element()
         } else {
