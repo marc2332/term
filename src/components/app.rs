@@ -36,6 +36,49 @@ impl Component for App {
 
         use_init_theme(|| {
             let mut theme = dark_theme();
+            for key in ["button", "flat_button"] {
+                theme.set(
+                    key,
+                    ButtonColorsThemePreference {
+                        background: Preference::Specific(Color::TRANSPARENT),
+                        hover_background: Preference::Specific(Color::from_argb(120, 80, 78, 86)),
+                        border_fill: Preference::Specific(Color::TRANSPARENT),
+                        focus_border_fill: Preference::Reference("border"),
+                        color: Preference::Reference("text_primary"),
+                    },
+                );
+            }
+            theme.set(
+                "menu_container",
+                MenuContainerThemePreference {
+                    background: Preference::Specific(Color::from_argb(242, 32, 31, 35)),
+                    padding: Preference::Specific(Gaps::new_all(4.)),
+                    shadow: Preference::Reference("shadow"),
+                    border_fill: Preference::Specific(Color::from_rgb(58, 56, 62)),
+                    corner_radius: Preference::Specific(CornerRadius::new_all(10.)),
+                },
+            );
+            theme.set(
+                "menu_item",
+                MenuItemThemePreference {
+                    background: Preference::Specific(Color::TRANSPARENT),
+                    hover_background: Preference::Specific(Color::from_argb(120, 80, 78, 86)),
+                    select_background: Preference::Specific(Color::from_argb(120, 80, 78, 86)),
+                    border_fill: Preference::Specific(Color::TRANSPARENT),
+                    select_border_fill: Preference::Reference("border_focus"),
+                    corner_radius: Preference::Specific(CornerRadius::new_all(6.)),
+                    color: Preference::Specific(Color::from_rgb(225, 225, 225)),
+                },
+            );
+            theme.set(
+                "tooltip",
+                TooltipThemePreference {
+                    background: Preference::Specific(Color::from_rgb(32, 31, 35)),
+                    color: Preference::Specific(Color::from_rgb(225, 225, 225)),
+                    border_fill: Preference::Specific(Color::from_rgb(58, 56, 62)),
+                    font_size: Preference::Specific(13.),
+                },
+            );
             theme.set(
                 "resizable_handle",
                 ResizableHandleThemePreference {

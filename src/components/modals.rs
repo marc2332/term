@@ -80,17 +80,25 @@ impl Component for AddProjectModal {
             .child(
                 PopupContent::new()
                     .child(
-                        label()
-                            .text("Path to a git repository (any of its worktrees works).")
-                            .font_size(13.)
-                            .color((150, 150, 150)),
-                    )
-                    .child(
-                        Input::new(path)
+                        rect()
                             .width(Size::fill())
-                            .placeholder("~/Projects/myproject")
-                            .auto_focus(true)
-                            .on_submit(submit),
+                            .vertical()
+                            .spacing(12.)
+                            .child(
+                                label()
+                                    .text("Path to a git repository (any of its worktrees works).")
+                                    .font_size(13.)
+                                    .color((150, 150, 150)),
+                            )
+                            .child(
+                                Input::new(path)
+                                    .flat()
+                                    .layout_variant(InputLayoutVariant::Expanded)
+                                    .width(Size::fill())
+                                    .placeholder("~/Projects/myproject")
+                                    .auto_focus(true)
+                                    .on_submit(submit),
+                            ),
                     )
                     .maybe_child(error.read().as_deref().map(error_label)),
             )

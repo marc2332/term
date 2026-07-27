@@ -187,7 +187,7 @@ impl Component for RecentProjectRow {
             .flat()
             .width(Size::fill())
             .rounded_lg()
-            .hover_background((35, 35, 35))
+            .hover_background(Color::from_argb(120, 80, 78, 86))
             .on_press(open)
             .color((200, 200, 200))
             .child(
@@ -271,7 +271,7 @@ impl Component for SessionRow {
             .flat()
             .width(Size::fill())
             .rounded_lg()
-            .hover_background((35, 35, 35))
+            .hover_background(Color::from_argb(120, 80, 78, 86))
             .on_press(restore)
             .color((200, 200, 200))
             .child(

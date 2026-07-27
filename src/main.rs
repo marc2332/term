@@ -63,6 +63,7 @@ fn main() {
         .with_background(Color::TRANSPARENT)
         .with_app_id("io.marc.term")
         .with_size(1024., 768.)
+        .with_min_size(250., 250.)
         .with_icon(LaunchConfig::window_icon(include_bytes!("../icon.png"))),
     );
 
