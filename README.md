@@ -10,7 +10,7 @@
 
 ---
 
-![marcterm screenshot](demo.png)
+![marcterm screenshot](screenshot.png)
 
 ---
 
