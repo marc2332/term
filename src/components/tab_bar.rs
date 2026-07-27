@@ -711,6 +711,7 @@ impl Component for WorktreeRow {
                     Some(tab) => label()
                         .text(format!("{}", tab.index + 1))
                         .font_size(14.)
+                        .max_lines(1)
                         .into_element(),
                     None => SvgViewer::new(icon)
                         .width(Size::px(14.))
@@ -1084,6 +1085,7 @@ impl Component for TabButton {
                         label()
                             .text(format!("{}", self.index + 1))
                             .font_size(14.)
+                            .max_lines(1)
                             .into_element()
                     })
             } else {
