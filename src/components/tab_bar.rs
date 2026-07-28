@@ -464,7 +464,7 @@ fn open_project_menu(mut radio: AppRadio, station: AppStation, id: ProjectId) {
         .peek()
         .project(id)
         .is_some_and(|p| !p.archived.is_empty());
-    let mut menu = Menu::new()
+    let menu = Menu::new()
         .child(menu_item(
             SvgViewer::new(lucide::refresh_cw()),
             "Refresh",
@@ -478,23 +478,24 @@ fn open_project_menu(mut radio: AppRadio, station: AppStation, id: ProjectId) {
             move || {
                 radio.write_channel(AppChannel::Tabs).modal = Some(Modal::ConfirmArchiveAll(id));
             },
-        ));
-    if has_archived {
-        menu = menu.child(menu_item(
-            SvgViewer::new(lucide::archive_restore()),
-            "Unarchive all worktrees",
+        ))
+        .maybe(has_archived, |el| {
+            el.child(menu_item(
+                SvgViewer::new(lucide::archive_restore()),
+                "Unarchive all worktrees",
+                move || {
+                    radio.write_channel(AppChannel::Tabs).modal =
+                        Some(Modal::ConfirmUnarchiveAll(id));
+                },
+            ))
+        })
+        .child(menu_item(
+            SvgViewer::new(lucide::x()),
+            "Close project",
             move || {
-                radio.write_channel(AppChannel::Tabs).modal = Some(Modal::ConfirmUnarchiveAll(id));
+                radio.write_channel(AppChannel::Tabs).modal = Some(Modal::ConfirmCloseProject(id));
             },
         ));
-    }
-    let menu = menu.child(menu_item(
-        SvgViewer::new(lucide::x()),
-        "Close project",
-        move || {
-            radio.write_channel(AppChannel::Tabs).modal = Some(Modal::ConfirmCloseProject(id));
-        },
-    ));
     ContextMenu::open(menu);
 }
 
@@ -623,8 +624,8 @@ impl Component for ProjectHeader {
 
         rect()
             .width(Size::fill())
-            .on_pointer_enter(move |_| hovered.set(true))
-            .on_pointer_leave(move |_| hovered.set(false))
+            .on_pointer_over(move |_| hovered.set_if_modified(true))
+            .on_pointer_out(move |_| hovered.set_if_modified(false))
             .child(
                 Button::new()
                     .flat()
@@ -663,43 +664,43 @@ fn open_worktree_menu(
     if is_main && tab_id.is_none() {
         return;
     }
-    let mut menu = Menu::new();
-    if let Some(tab_id) = tab_id {
-        menu = menu.child(menu_item(
-            SvgViewer::new(lucide::moon()),
-            "Sleep",
-            move || {
-                radio
-                    .write_channel(AppChannel::Tabs)
-                    .close_tab_by_id(tab_id);
-            },
-        ));
-    }
-    if !is_main {
-        let name = worktree.name.clone();
-        let path = worktree.path.clone();
-        let (icon, label) = if archived {
-            (lucide::archive_restore(), "Unarchive")
-        } else {
-            (lucide::archive(), "Archive")
-        };
-        menu = menu.child(menu_item(SvgViewer::new(icon), label, move || {
-            let mut state = radio.write_channel(AppChannel::Tabs);
-            if archived {
-                state.unarchive_worktree(project_id, &name);
+    let menu = Menu::new()
+        .map(tab_id, |el, tab_id| {
+            el.child(menu_item(
+                SvgViewer::new(lucide::moon()),
+                "Sleep",
+                move || {
+                    radio
+                        .write_channel(AppChannel::Tabs)
+                        .close_tab_by_id(tab_id);
+                },
+            ))
+        })
+        .maybe(!is_main, |el| {
+            let name = worktree.name.clone();
+            let path = worktree.path.clone();
+            let (icon, label) = if archived {
+                (lucide::archive_restore(), "Unarchive")
             } else {
-                let mut list = state
-                    .project(project_id)
-                    .map(|p| p.archived.clone())
-                    .unwrap_or_default();
-                if !list.contains(&name) {
-                    list.push(name.clone());
+                (lucide::archive(), "Archive")
+            };
+            el.child(menu_item(SvgViewer::new(icon), label, move || {
+                let mut state = radio.write_channel(AppChannel::Tabs);
+                if archived {
+                    state.unarchive_worktree(project_id, &name);
+                } else {
+                    let mut list = state
+                        .project(project_id)
+                        .map(|p| p.archived.clone())
+                        .unwrap_or_default();
+                    if !list.contains(&name) {
+                        list.push(name.clone());
+                    }
+                    state.close_tabs_in_worktree(&path);
+                    state.set_archived(project_id, list);
                 }
-                state.close_tabs_in_worktree(&path);
-                state.set_archived(project_id, list);
-            }
-        }));
-    }
+            }))
+        });
     ContextMenu::open(menu);
 }
 
@@ -883,8 +884,8 @@ impl Component for WorktreeRow {
         rect()
             .width(Size::fill())
             .height(Size::px(worktree_row_height(self)))
-            .on_pointer_over(move |_| hovered.set(true))
-            .on_pointer_out(move |_| hovered.set(false))
+            .on_pointer_over(move |_| hovered.set_if_modified(true))
+            .on_pointer_out(move |_| hovered.set_if_modified(false))
             .child(
                 Button::new()
                     .width(Size::fill())
@@ -1251,8 +1252,8 @@ impl Component for TabButton {
         rect()
             .width(Size::fill())
             .height(Size::px(31.))
-            .on_pointer_over(move |_| hovered.set(true))
-            .on_pointer_out(move |_| hovered.set(false))
+            .on_pointer_over(move |_| hovered.set_if_modified(true))
+            .on_pointer_out(move |_| hovered.set_if_modified(false))
             .child(button)
     }
 

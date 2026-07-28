@@ -114,7 +114,7 @@ impl Component for AboutModal {
     }
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 struct ConfirmModal {
     title: &'static str,
     message: String,
@@ -122,17 +122,17 @@ struct ConfirmModal {
     on_confirm: EventHandler<()>,
 }
 
-impl Component for ConfirmModal {
-    fn render(&self) -> impl IntoElement {
+impl ComponentOwned for ConfirmModal {
+    fn render(self) -> impl IntoElement {
         let radio = use_radio(AppChannel::Tabs);
-        let on_confirm = self.on_confirm.clone();
+        let on_confirm = self.on_confirm;
         Popup::new()
             .on_close_request(move |_| close_modal(radio))
             .child(PopupTitle::new(self.title.to_string()))
             .child(
                 PopupContent::new().child(
                     label()
-                        .text(self.message.clone())
+                        .text(self.message)
                         .font_size(13.)
                         .color((150, 150, 150))
                         .max_lines(3),
