@@ -4,7 +4,7 @@ use freya::prelude::*;
 use freya::radio::*;
 
 use crate::git;
-use crate::state::{AppChannel, AppState, Modal, open_project};
+use crate::state::{AppChannel, AppState, Modal, ProjectId, open_project};
 
 type AppRadio = Radio<AppState, AppChannel>;
 
@@ -13,11 +13,107 @@ pub struct ModalHost;
 
 impl Component for ModalHost {
     fn render(&self) -> impl IntoElement {
-        let radio = use_radio(AppChannel::Tabs);
-        match radio.read().modal.clone() {
+        let mut radio = use_radio(AppChannel::Tabs);
+        let modal = radio.read().modal.clone();
+        let project_name = |id: ProjectId| {
+            radio
+                .read()
+                .project(id)
+                .map(|p| p.name.clone())
+                .unwrap_or_default()
+        };
+        match modal {
             None => rect().into_element(),
             Some(Modal::AddProject) => AddProjectModal.into_element(),
+            Some(Modal::ConfirmArchiveAll(id)) => ConfirmModal {
+                title: "Archive All Worktrees",
+                message: format!(
+                    "Archive all worktrees in {}? Their open tabs will be closed.",
+                    project_name(id)
+                ),
+                confirm: "Archive",
+                on_confirm: (move |()| {
+                    radio
+                        .write_channel(AppChannel::Tabs)
+                        .archive_all_worktrees(id);
+                })
+                .into(),
+            }
+            .into_element(),
+            Some(Modal::ConfirmUnarchiveAll(id)) => ConfirmModal {
+                title: "Unarchive All Worktrees",
+                message: format!("Unarchive all archived worktrees in {}?", project_name(id)),
+                confirm: "Unarchive",
+                on_confirm: (move |()| {
+                    radio
+                        .write_channel(AppChannel::Tabs)
+                        .set_archived(id, vec![]);
+                })
+                .into(),
+            }
+            .into_element(),
+            Some(Modal::ConfirmCloseProject(id)) => ConfirmModal {
+                title: "Close Project",
+                message: format!(
+                    "Close {} and all of its tabs? Nothing on disk is affected.",
+                    project_name(id)
+                ),
+                confirm: "Close",
+                on_confirm: (move |()| {
+                    radio.write_channel(AppChannel::Tabs).remove_project(id);
+                })
+                .into(),
+            }
+            .into_element(),
         }
+    }
+}
+
+#[derive(PartialEq)]
+struct ConfirmModal {
+    title: &'static str,
+    message: String,
+    confirm: &'static str,
+    on_confirm: EventHandler<()>,
+}
+
+impl Component for ConfirmModal {
+    fn render(&self) -> impl IntoElement {
+        let radio = use_radio(AppChannel::Tabs);
+        let on_confirm = self.on_confirm.clone();
+        Popup::new()
+            .on_close_request(move |_| close_modal(radio))
+            .child(PopupTitle::new(self.title.to_string()))
+            .child(
+                PopupContent::new().child(
+                    label()
+                        .text(self.message.clone())
+                        .font_size(13.)
+                        .color((150, 150, 150))
+                        .max_lines(3),
+                ),
+            )
+            .child(
+                PopupButtons::new()
+                    .child(
+                        Button::new()
+                            .expanded()
+                            .rounded_full()
+                            .on_press(move |_| close_modal(radio))
+                            .child("Cancel"),
+                    )
+                    .child(
+                        Button::new()
+                            .expanded()
+                            .filled()
+                            .rounded_full()
+                            .on_press(move |_| {
+                                on_confirm.call(());
+                                close_modal(radio);
+                            })
+                            .child(self.confirm),
+                    ),
+            )
     }
 }
 

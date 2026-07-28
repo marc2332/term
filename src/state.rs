@@ -92,6 +92,9 @@ pub struct WorktreeEntry {
 #[derive(Clone, PartialEq)]
 pub enum Modal {
     AddProject,
+    ConfirmArchiveAll(ProjectId),
+    ConfirmUnarchiveAll(ProjectId),
+    ConfirmCloseProject(ProjectId),
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -591,6 +594,34 @@ impl AppState {
         }
     }
 
+    /// Remove a worktree from its project's archived list.
+    pub fn unarchive_worktree(&mut self, id: ProjectId, name: &str) {
+        let mut list = self
+            .project(id)
+            .map(|p| p.archived.clone())
+            .unwrap_or_default();
+        list.retain(|n| n != name);
+        self.set_archived(id, list);
+    }
+
+    /// Archive every non-main worktree of a project and close their tabs.
+    pub fn archive_all_worktrees(&mut self, id: ProjectId) {
+        let targets: Vec<(String, PathBuf)> = self
+            .project(id)
+            .map(|p| {
+                p.worktrees
+                    .iter()
+                    .filter(|wt| !wt.is_main)
+                    .map(|wt| (wt.name.clone(), wt.path.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.set_archived(id, targets.iter().map(|(name, _)| name.clone()).collect());
+        for (_, path) in &targets {
+            self.close_tabs_in_worktree(path);
+        }
+    }
+
     /// Close every tab open on the given worktree.
     pub fn close_tabs_in_worktree(&mut self, path: &Path) {
         let active_id = self.active_tab().map(|t| t.id);
@@ -598,26 +629,30 @@ impl AppState {
         self.restore_active(active_id);
     }
 
-    /// The project's visible sidebar rows, in display order.
+    /// The project's visible sidebar rows, in display order. Archived rows go
+    /// last, ordered by archive time (most recently archived first).
     pub fn worktree_entries(&self, project: &Project) -> Vec<WorktreeEntry> {
-        let mut entries: Vec<WorktreeEntry> =
-            sorted_worktrees(&project.worktrees, &project.worktree_order)
-                .into_iter()
-                .filter_map(|worktree| {
-                    let archived = project.archived.contains(&worktree.name);
-                    if archived && !project.show_archived {
-                        return None;
-                    }
-                    let tab = self
-                        .tab_for_worktree(project.id, &worktree.path)
-                        .map(|t| t.id);
-                    Some(WorktreeEntry {
-                        worktree,
-                        tab,
-                        archived,
-                    })
-                })
-                .collect();
+        let mut entries: Vec<WorktreeEntry> = Vec::new();
+        let mut archived_entries: Vec<WorktreeEntry> = Vec::new();
+        for worktree in sorted_worktrees(&project.worktrees, &project.worktree_order) {
+            let archived = project.archived.contains(&worktree.name);
+            if archived && !project.show_archived {
+                continue;
+            }
+            let tab = self
+                .tab_for_worktree(project.id, &worktree.path)
+                .map(|t| t.id);
+            let entry = WorktreeEntry {
+                worktree,
+                tab,
+                archived,
+            };
+            if archived {
+                archived_entries.push(entry);
+            } else {
+                entries.push(entry);
+            }
+        }
         for tab in &self.tabs {
             if tab.project == Some(project.id)
                 && let Some(path) = &tab.worktree
@@ -628,13 +663,28 @@ impl AppState {
                 if archived && !project.show_archived {
                     continue;
                 }
-                entries.push(WorktreeEntry {
+                let entry = WorktreeEntry {
                     worktree,
                     tab: Some(tab.id),
                     archived,
-                });
+                };
+                if archived {
+                    archived_entries.push(entry);
+                } else {
+                    entries.push(entry);
+                }
             }
         }
+        // `archived` is append-ordered, so a higher index means archived later.
+        archived_entries.sort_by_key(|entry| {
+            std::cmp::Reverse(
+                project
+                    .archived
+                    .iter()
+                    .position(|name| name == &entry.worktree.name),
+            )
+        });
+        entries.extend(archived_entries);
         entries
     }
 

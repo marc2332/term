@@ -388,23 +388,7 @@ fn menu_item(text: &'static str, mut action: impl FnMut() + 'static) -> MenuButt
 }
 
 fn open_project_menu(mut radio: AppRadio, id: ProjectId, has_archived: bool, show_archived: bool) {
-    let mut menu = Menu::new().child(menu_item("Archive All Worktrees", move || {
-        let mut state = radio.write_channel(AppChannel::Tabs);
-        let targets: Vec<(String, std::path::PathBuf)> = state
-            .project(id)
-            .map(|p| {
-                p.worktrees
-                    .iter()
-                    .filter(|wt| !wt.is_main)
-                    .map(|wt| (wt.name.clone(), wt.path.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
-        state.set_archived(id, targets.iter().map(|(name, _)| name.clone()).collect());
-        for (_, path) in &targets {
-            state.close_tabs_in_worktree(path);
-        }
-    }));
+    let mut menu = Menu::new();
     if has_archived {
         let label = if show_archived {
             "Hide Archived Worktrees"
@@ -416,14 +400,17 @@ fn open_project_menu(mut radio: AppRadio, id: ProjectId, has_archived: bool, sho
                 .write_channel(AppChannel::Tabs)
                 .toggle_show_archived(id);
         }));
+    }
+    menu = menu.child(menu_item("Archive All Worktrees", move || {
+        radio.write_channel(AppChannel::Tabs).modal = Some(Modal::ConfirmArchiveAll(id));
+    }));
+    if has_archived {
         menu = menu.child(menu_item("Unarchive All Worktrees", move || {
-            radio
-                .write_channel(AppChannel::Tabs)
-                .set_archived(id, vec![]);
+            radio.write_channel(AppChannel::Tabs).modal = Some(Modal::ConfirmUnarchiveAll(id));
         }));
     }
     menu = menu.child(menu_item("Close Project", move || {
-        radio.write_channel(AppChannel::Tabs).remove_project(id);
+        radio.write_channel(AppChannel::Tabs).modal = Some(Modal::ConfirmCloseProject(id));
     }));
     ContextMenu::open(menu);
 }
@@ -578,19 +565,19 @@ fn open_worktree_menu(
         };
         menu = menu.child(menu_item(label, move || {
             let mut state = radio.write_channel(AppChannel::Tabs);
-            let mut list = state
-                .project(project_id)
-                .map(|p| p.archived.clone())
-                .unwrap_or_default();
             if archived {
-                list.retain(|n| n != &name);
+                state.unarchive_worktree(project_id, &name);
             } else {
+                let mut list = state
+                    .project(project_id)
+                    .map(|p| p.archived.clone())
+                    .unwrap_or_default();
                 if !list.contains(&name) {
                     list.push(name.clone());
                 }
                 state.close_tabs_in_worktree(&path);
+                state.set_archived(project_id, list);
             }
-            state.set_archived(project_id, list);
         }));
     }
     ContextMenu::open(menu);
@@ -653,11 +640,20 @@ impl Component for WorktreeRow {
 
         let on_press = {
             let path = worktree.path.clone();
-            move |_: Event<PressEventData>| match tab {
-                Some(tab) => {
-                    radio.write_channel(AppChannel::Tabs).switch_to_tab(tab.id);
+            let name = worktree.name.clone();
+            let archived = self.archived;
+            move |_: Event<PressEventData>| {
+                if archived {
+                    radio
+                        .write_channel(AppChannel::Tabs)
+                        .unarchive_worktree(project_id, &name);
                 }
-                None => create_tab(station, Some(project_id), Some(path.clone()), None),
+                match tab {
+                    Some(tab) => {
+                        radio.write_channel(AppChannel::Tabs).switch_to_tab(tab.id);
+                    }
+                    None => create_tab(station, Some(project_id), Some(path.clone()), None),
+                }
             }
         };
 
