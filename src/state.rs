@@ -556,6 +556,21 @@ impl AppState {
     }
 
     /// Move `dragged` to `target`'s position in the persisted sidebar order.
+    /// Move a project to another project's position in the sidebar.
+    pub fn move_project(&mut self, dragged: ProjectId, target: ProjectId) {
+        if dragged == target {
+            return;
+        }
+        let Some(from) = self.projects.iter().position(|p| p.id == dragged) else {
+            return;
+        };
+        let Some(to) = self.projects.iter().position(|p| p.id == target) else {
+            return;
+        };
+        let project = self.projects.remove(from);
+        self.projects.insert(to, project);
+    }
+
     pub fn reorder_worktree(&mut self, id: ProjectId, dragged: &str, target: &str) {
         let Some(project) = self.project_mut(id) else {
             return;

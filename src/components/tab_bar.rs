@@ -19,6 +19,7 @@ type AppRadio = Radio<AppState, AppChannel>;
 enum DragPayload {
     Tab(TabId),
     Worktree(ProjectId, String),
+    Project(ProjectId),
 }
 
 #[derive(PartialEq, Clone, Copy)]
@@ -64,12 +65,34 @@ fn sidebar_item_element(mut radio: AppRadio, item: &SidebarItem) -> Element {
     match item {
         SidebarItem::Header(header) => {
             let group_id = header.id;
-            DropZone::new(header.clone(), move |payload: DragPayload| {
-                if let DragPayload::Tab(dragged_id) = payload {
+            let name = header.name.clone();
+            let zone = DragZone::new(DragPayload::Project(group_id), header.clone())
+                .show_while_dragging(false)
+                .drag_element(drag_preview(
+                    rect()
+                        .horizontal()
+                        .spacing(6.)
+                        .cross_align(Alignment::Center)
+                        .child(
+                            SvgViewer::new(lucide::folder_git_2())
+                                .width(Size::px(14.))
+                                .height(Size::px(14.))
+                                .stroke((230, 230, 230)),
+                        )
+                        .child(label().text(name).font_size(14.).color((230, 230, 230))),
+                ));
+            DropZone::new(zone, move |payload: DragPayload| match payload {
+                DragPayload::Tab(dragged_id) => {
                     radio
                         .write_channel(AppChannel::Tabs)
                         .reparent_tab(dragged_id, Some(group_id));
                 }
+                DragPayload::Project(dragged_id) => {
+                    radio
+                        .write_channel(AppChannel::Tabs)
+                        .move_project(dragged_id, group_id);
+                }
+                DragPayload::Worktree(..) => {}
             })
             .into_element()
         }
