@@ -9,6 +9,7 @@ use crate::components::titlebar::Titlebar;
 use crate::git::Worktree;
 use crate::state::{
     AppChannel, AppState, AppStation, Modal, ProjectId, TabId, create_plain_tab, create_tab,
+    force_refresh_worktrees,
 };
 
 type AppRadio = Radio<AppState, AppChannel>;
@@ -27,6 +28,7 @@ pub struct TabBar;
 enum SidebarItem {
     Header(ProjectHeader),
     Worktree(WorktreeRow),
+    ArchivedFilter(ArchivedFilterRow),
     Tab(TabButton),
     Divider,
     LooseDrop,
@@ -50,6 +52,7 @@ fn sidebar_item_size(item: &SidebarItem) -> f32 {
     let height = match item {
         SidebarItem::Header(_) => 28.,
         SidebarItem::Worktree(row) => worktree_row_height(row),
+        SidebarItem::ArchivedFilter(_) => 34.,
         SidebarItem::Tab(_) => 31.,
         SidebarItem::Divider => 1.,
         SidebarItem::LooseDrop => 24.,
@@ -71,6 +74,7 @@ fn sidebar_item_element(mut radio: AppRadio, item: &SidebarItem) -> Element {
             .into_element()
         }
         SidebarItem::Worktree(row) => draggable_worktree_row(radio, row.clone()),
+        SidebarItem::ArchivedFilter(row) => row.clone().into_element(),
         SidebarItem::Tab(tab) => draggable_tab(radio, tab.clone()),
         SidebarItem::Divider => rect()
             .width(Size::fill())
@@ -117,18 +121,36 @@ impl Component for TabBar {
 
             let mut items: Vec<SidebarItem> = vec![];
             for project in &state.projects {
+                let has_archived = !project.archived.is_empty();
                 items.push(SidebarItem::Header(ProjectHeader {
                     id: project.id,
                     name: project.name.clone(),
                     collapsed: project.collapsed,
-                    has_archived: !project.archived.is_empty(),
+                    has_archived,
                     show_archived: project.show_archived,
                     compact: state.sidebar_collapsed,
                 }));
                 if project.collapsed {
                     continue;
                 }
-                for entry in state.worktree_entries(project) {
+                let entries = state.worktree_entries(project);
+                let show_filter = project.show_archived && has_archived && !state.sidebar_collapsed;
+                let filter_at = show_filter.then(|| {
+                    entries
+                        .iter()
+                        .position(|e| e.archived)
+                        .unwrap_or(entries.len())
+                });
+                let filter_row = || {
+                    SidebarItem::ArchivedFilter(ArchivedFilterRow {
+                        project_id: project.id,
+                    })
+                };
+                let end = entries.len();
+                for (i, entry) in entries.into_iter().enumerate() {
+                    if filter_at == Some(i) {
+                        items.push(filter_row());
+                    }
                     let open_tab = entry
                         .tab
                         .and_then(|id| state.tabs.iter().find(|t| t.id == id));
@@ -148,6 +170,9 @@ impl Component for TabBar {
                             .filter(|title| !title.is_empty()),
                         compact: state.sidebar_collapsed,
                     }));
+                }
+                if filter_at == Some(end) {
+                    items.push(filter_row());
                 }
                 items.extend(
                     state
@@ -244,6 +269,7 @@ fn bottom_actions(mut radio: AppRadio, station: AppStation, compact: bool) -> El
             .vertical()
             .child(new_tab_button(station, None, true))
             .child(add_project_button(radio, true))
+            .child(about_button(radio, true))
             .into_element()
     } else {
         rect()
@@ -263,6 +289,13 @@ fn bottom_actions(mut radio: AppRadio, station: AppStation, compact: bool) -> El
                 "Add Project",
                 move |_| {
                     radio.write_channel(AppChannel::Tabs).modal = Some(Modal::AddProject);
+                },
+            ))
+            .child(pill_button(
+                SvgViewer::new(lucide::info()),
+                "About",
+                move |_| {
+                    radio.write_channel(AppChannel::Tabs).modal = Some(Modal::About);
                 },
             ))
             .into_element()
@@ -376,7 +409,11 @@ fn draggable_worktree_row(mut radio: AppRadio, row: WorktreeRow) -> Element {
         .into_element()
 }
 
-fn menu_item(text: &'static str, mut action: impl FnMut() + 'static) -> MenuButton {
+fn menu_item(
+    icon: SvgViewer,
+    text: &'static str,
+    mut action: impl FnMut() + 'static,
+) -> MenuButton {
     MenuButton::new()
         .on_press(move |e: Event<PressEventData>| {
             e.stop_propagation();
@@ -384,52 +421,80 @@ fn menu_item(text: &'static str, mut action: impl FnMut() + 'static) -> MenuButt
             ContextMenu::close();
             action();
         })
-        .child(label().text(text).font_size(14.))
+        .child(
+            rect()
+                .horizontal()
+                .spacing(8.)
+                .cross_align(Alignment::Center)
+                .child(
+                    icon.width(Size::px(14.))
+                        .height(Size::px(14.))
+                        .stroke((180, 180, 180))
+                        .stroke_width(2.5),
+                )
+                .child(label().text(text).font_size(14.)),
+        )
 }
 
-fn open_project_menu(mut radio: AppRadio, id: ProjectId, has_archived: bool, show_archived: bool) {
-    let mut menu = Menu::new();
+fn open_project_menu(mut radio: AppRadio, station: AppStation, id: ProjectId) {
+    let has_archived = station
+        .peek()
+        .project(id)
+        .is_some_and(|p| !p.archived.is_empty());
+    let mut menu = Menu::new()
+        .child(menu_item(
+            SvgViewer::new(lucide::refresh_cw()),
+            "Refresh",
+            move || {
+                force_refresh_worktrees(station, id);
+            },
+        ))
+        .child(menu_item(
+            SvgViewer::new(lucide::archive()),
+            "Archive all worktrees",
+            move || {
+                radio.write_channel(AppChannel::Tabs).modal = Some(Modal::ConfirmArchiveAll(id));
+            },
+        ));
     if has_archived {
-        let label = if show_archived {
-            "Hide Archived Worktrees"
-        } else {
-            "Show Archived Worktrees"
-        };
-        menu = menu.child(menu_item(label, move || {
-            radio
-                .write_channel(AppChannel::Tabs)
-                .toggle_show_archived(id);
-        }));
+        menu = menu.child(menu_item(
+            SvgViewer::new(lucide::archive_restore()),
+            "Unarchive all worktrees",
+            move || {
+                radio.write_channel(AppChannel::Tabs).modal = Some(Modal::ConfirmUnarchiveAll(id));
+            },
+        ));
     }
-    menu = menu.child(menu_item("Archive All Worktrees", move || {
-        radio.write_channel(AppChannel::Tabs).modal = Some(Modal::ConfirmArchiveAll(id));
-    }));
-    if has_archived {
-        menu = menu.child(menu_item("Unarchive All Worktrees", move || {
-            radio.write_channel(AppChannel::Tabs).modal = Some(Modal::ConfirmUnarchiveAll(id));
-        }));
-    }
-    menu = menu.child(menu_item("Close Project", move || {
-        radio.write_channel(AppChannel::Tabs).modal = Some(Modal::ConfirmCloseProject(id));
-    }));
+    let menu = menu.child(menu_item(
+        SvgViewer::new(lucide::x()),
+        "Close project",
+        move || {
+            radio.write_channel(AppChannel::Tabs).modal = Some(Modal::ConfirmCloseProject(id));
+        },
+    ));
     ContextMenu::open(menu);
 }
 
 fn header_action(
     icon: SvgViewer,
+    tooltip: &'static str,
     on_press: impl FnMut(Event<PressEventData>) + 'static,
 ) -> Element {
-    Button::new()
-        .flat()
-        .width(Size::px(20.))
-        .height(Size::px(20.))
-        .compact()
-        .rounded_full()
-        .on_press(on_press)
+    TooltipContainer::new(Tooltip::new(tooltip))
+        .position(AttachedPosition::Top)
         .child(
-            icon.width(Size::px(14.))
-                .height(Size::px(14.))
-                .stroke((150, 150, 150)),
+            Button::new()
+                .flat()
+                .width(Size::px(20.))
+                .height(Size::px(20.))
+                .compact()
+                .rounded_full()
+                .on_press(on_press)
+                .child(
+                    icon.width(Size::px(14.))
+                        .height(Size::px(14.))
+                        .stroke((150, 150, 150)),
+                ),
         )
         .into_element()
 }
@@ -451,6 +516,8 @@ impl Component for ProjectHeader {
         let show_archived = self.show_archived;
         let mut radio = use_radio(AppChannel::Tabs);
         let station = use_radio_station::<AppState, AppChannel>();
+        let mut hovered = use_state(|| false);
+        let hovering = *hovered.read();
 
         let chevron = if self.collapsed {
             lucide::chevron_right()
@@ -497,41 +564,64 @@ impl Component for ProjectHeader {
                         .max_lines(1)
                         .text_overflow(TextOverflow::Ellipsis),
                 )
-                .child(header_action(
-                    SvgViewer::new(lucide::circle_plus()),
-                    move |e| {
-                        e.stop_propagation();
-                        create_plain_tab(station, Some(id));
-                    },
-                ))
-                .child(header_action(
-                    SvgViewer::new(lucide::arrow_down_up()),
-                    move |e| {
-                        e.stop_propagation();
-                        radio.write_channel(AppChannel::Tabs).sort_worktrees(id);
-                    },
-                ))
+                .maybe(hovering, |el| {
+                    el.maybe(has_archived, |el| {
+                        let (icon, tooltip) = if show_archived {
+                            (lucide::eye_off(), "Hide archived worktrees")
+                        } else {
+                            (lucide::eye(), "Show archived worktrees")
+                        };
+                        el.child(header_action(SvgViewer::new(icon), tooltip, move |e| {
+                            e.stop_propagation();
+                            radio
+                                .write_channel(AppChannel::Tabs)
+                                .toggle_show_archived(id);
+                        }))
+                    })
+                    .child(header_action(
+                        SvgViewer::new(lucide::circle_plus()),
+                        "New tab",
+                        move |e| {
+                            e.stop_propagation();
+                            create_plain_tab(station, Some(id));
+                        },
+                    ))
+                    .child(header_action(
+                        SvgViewer::new(lucide::arrow_down_up()),
+                        "Sort worktrees",
+                        move |e| {
+                            e.stop_propagation();
+                            radio.write_channel(AppChannel::Tabs).sort_worktrees(id);
+                        },
+                    ))
+                })
                 .into_element()
         };
 
-        Button::new()
-            .flat()
+        rect()
             .width(Size::fill())
-            .height(Size::px(28.))
-            .compact()
-            .rounded_lg()
-            .hover_background(Color::from_argb(120, 80, 78, 86))
-            .on_secondary_down(move |_: Event<PressEventData>| {
-                open_project_menu(radio, id, has_archived, show_archived)
-            })
-            .on_press(move |_| {
-                let mut state = radio.write_channel(AppChannel::Tabs);
-                if let Some(project) = state.project_mut(id) {
-                    project.collapsed = !project.collapsed;
-                }
-            })
-            .color((200, 200, 200))
-            .child(content)
+            .on_pointer_enter(move |_| hovered.set(true))
+            .on_pointer_leave(move |_| hovered.set(false))
+            .child(
+                Button::new()
+                    .flat()
+                    .width(Size::fill())
+                    .height(Size::px(28.))
+                    .compact()
+                    .rounded_lg()
+                    .hover_background(Color::from_argb(120, 80, 78, 86))
+                    .on_secondary_down(move |_: Event<PressEventData>| {
+                        open_project_menu(radio, station, id)
+                    })
+                    .on_press(move |_| {
+                        let mut state = radio.write_channel(AppChannel::Tabs);
+                        if let Some(project) = state.project_mut(id) {
+                            project.collapsed = !project.collapsed;
+                        }
+                    })
+                    .color((200, 200, 200))
+                    .child(content),
+            )
     }
 
     fn render_key(&self) -> DiffKey {
@@ -547,23 +637,30 @@ fn open_worktree_menu(
     archived: bool,
     tab_id: Option<TabId>,
 ) {
+    if is_main && tab_id.is_none() {
+        return;
+    }
     let mut menu = Menu::new();
     if let Some(tab_id) = tab_id {
-        menu = menu.child(menu_item("Sleep", move || {
-            radio
-                .write_channel(AppChannel::Tabs)
-                .close_tab_by_id(tab_id);
-        }));
+        menu = menu.child(menu_item(
+            SvgViewer::new(lucide::moon()),
+            "Sleep",
+            move || {
+                radio
+                    .write_channel(AppChannel::Tabs)
+                    .close_tab_by_id(tab_id);
+            },
+        ));
     }
     if !is_main {
         let name = worktree.name.clone();
         let path = worktree.path.clone();
-        let label = if archived {
-            "Unarchive Worktree"
+        let (icon, label) = if archived {
+            (lucide::archive_restore(), "Unarchive")
         } else {
-            "Archive Worktree"
+            (lucide::archive(), "Archive")
         };
-        menu = menu.child(menu_item(label, move || {
+        menu = menu.child(menu_item(SvgViewer::new(icon), label, move || {
             let mut state = radio.write_channel(AppChannel::Tabs);
             if archived {
                 state.unarchive_worktree(project_id, &name);
@@ -787,6 +884,58 @@ impl Component for WorktreeRow {
     }
 }
 
+/// Transparent name filter shown above a project's archived worktrees.
+#[derive(PartialEq, Clone)]
+struct ArchivedFilterRow {
+    project_id: ProjectId,
+}
+
+impl Component for ArchivedFilterRow {
+    fn render(&self) -> impl IntoElement {
+        let radio = use_radio(AppChannel::Tabs);
+        let id = self.project_id;
+        let value = radio
+            .slice_mut(AppChannel::Tabs, move |state: &mut AppState| {
+                state.archived_filters.entry(id).or_default()
+            })
+            .into_writable();
+
+        rect()
+            .width(Size::fill())
+            .height(Size::px(34.))
+            .font_size(13.)
+            .child(
+                Input::new(value)
+                    .flat()
+                    .width(Size::fill())
+                    .placeholder("Filter archived")
+                    .background(Color::TRANSPARENT)
+                    .focus_background(Color::TRANSPARENT)
+                    .border_fill(Color::TRANSPARENT)
+                    .focus_border_fill(Color::TRANSPARENT)
+                    .corner_radius(CornerRadius::new_all(8.))
+                    .inner_margin(Gaps::new(8., 8., 8., 2.))
+                    .leading(
+                        rect()
+                            .width(Size::px(36.))
+                            .height(Size::fill())
+                            .center()
+                            .child(
+                                SvgViewer::new(lucide::search())
+                                    .width(Size::px(14.))
+                                    .height(Size::px(14.))
+                                    .stroke((110, 110, 110)),
+                            )
+                            .into_element(),
+                    ),
+            )
+    }
+
+    fn render_key(&self) -> DiffKey {
+        DiffKey::from(&("archived-filter", self.project_id.0))
+    }
+}
+
 /// Shared style for sidebar actions, icon-only when collapsed.
 fn sidebar_action_button(
     icon: SvgViewer,
@@ -859,6 +1008,17 @@ fn add_project_button(mut radio: AppRadio, collapsed: bool) -> impl IntoElement 
         collapsed,
         move |_| {
             radio.write_channel(AppChannel::Tabs).modal = Some(Modal::AddProject);
+        },
+    )
+}
+
+fn about_button(mut radio: AppRadio, collapsed: bool) -> impl IntoElement {
+    sidebar_action_button(
+        SvgViewer::new(lucide::info()),
+        "About",
+        collapsed,
+        move |_| {
+            radio.write_channel(AppChannel::Tabs).modal = Some(Modal::About);
         },
     )
 }
@@ -1014,12 +1174,16 @@ impl Component for TabButton {
                     let custom_title = custom_title.clone();
                     ContextMenu::open(
                         Menu::new()
-                            .child(menu_item("Rename", move || {
-                                was_focused.set(false);
-                                rename_value.set(custom_title.clone());
-                                editing.set(true);
-                            }))
-                            .child(menu_item("Close", move || {
+                            .child(menu_item(
+                                SvgViewer::new(lucide::pencil()),
+                                "Rename",
+                                move || {
+                                    was_focused.set(false);
+                                    rename_value.set(custom_title.clone());
+                                    editing.set(true);
+                                },
+                            ))
+                            .child(menu_item(SvgViewer::new(lucide::x()), "Close", move || {
                                 radio
                                     .write_channel(AppChannel::Tabs)
                                     .close_tab_by_id(tab_id);

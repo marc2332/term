@@ -24,9 +24,10 @@ impl Component for ModalHost {
         };
         match modal {
             None => rect().into_element(),
+            Some(Modal::About) => AboutModal.into_element(),
             Some(Modal::AddProject) => AddProjectModal.into_element(),
             Some(Modal::ConfirmArchiveAll(id)) => ConfirmModal {
-                title: "Archive All Worktrees",
+                title: "Archive all worktrees",
                 message: format!(
                     "Archive all worktrees in {}? Their open tabs will be closed.",
                     project_name(id)
@@ -41,7 +42,7 @@ impl Component for ModalHost {
             }
             .into_element(),
             Some(Modal::ConfirmUnarchiveAll(id)) => ConfirmModal {
-                title: "Unarchive All Worktrees",
+                title: "Unarchive all worktrees",
                 message: format!("Unarchive all archived worktrees in {}?", project_name(id)),
                 confirm: "Unarchive",
                 on_confirm: (move |()| {
@@ -53,7 +54,7 @@ impl Component for ModalHost {
             }
             .into_element(),
             Some(Modal::ConfirmCloseProject(id)) => ConfirmModal {
-                title: "Close Project",
+                title: "Close project",
                 message: format!(
                     "Close {} and all of its tabs? Nothing on disk is affected.",
                     project_name(id)
@@ -66,6 +67,50 @@ impl Component for ModalHost {
             }
             .into_element(),
         }
+    }
+}
+
+#[derive(PartialEq, Clone, Copy)]
+struct AboutModal;
+
+impl Component for AboutModal {
+    fn render(&self) -> impl IntoElement {
+        let radio = use_radio(AppChannel::Tabs);
+        Popup::new()
+            .width(Size::px(300.))
+            .on_close_request(move |_| close_modal(radio))
+            .child(
+                PopupContent::new().child(
+                    rect()
+                        .width(Size::fill())
+                        .vertical()
+                        .cross_align(Alignment::Center)
+                        .spacing(8.)
+                        .padding((16., 0., 16., 0.))
+                        .child(
+                            ImageViewer::new(("marcterm-icon", include_bytes!("../../icon.png")))
+                                .width(Size::px(128.))
+                                .height(Size::px(128.)),
+                        )
+                        .child(label().text(env!("CARGO_PKG_NAME")).font_size(18.))
+                        .child(
+                            label()
+                                .text(format!("Version {}", env!("CARGO_PKG_VERSION")))
+                                .font_size(13.)
+                                .color((150, 150, 150)),
+                        ),
+                ),
+            )
+            .child(
+                PopupButtons::new().child(
+                    Button::new()
+                        .expanded()
+                        .filled()
+                        .rounded_full()
+                        .on_press(move |_| close_modal(radio))
+                        .child("Accept"),
+                ),
+            )
     }
 }
 

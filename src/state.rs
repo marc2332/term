@@ -1,3 +1,4 @@
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
@@ -91,6 +92,7 @@ pub struct WorktreeEntry {
 
 #[derive(Clone, PartialEq)]
 pub enum Modal {
+    About,
     AddProject,
     ConfirmArchiveAll(ProjectId),
     ConfirmUnarchiveAll(ProjectId),
@@ -448,6 +450,8 @@ pub struct AppState {
     pub sidebar_collapsed: bool,
     pub modal: Option<Modal>,
     pub notice: Option<String>,
+    /// Per-project name filter for the archived worktrees list (not persisted).
+    pub archived_filters: HashMap<ProjectId, String>,
     /// Identifies this run in the sessions ring.
     pub started_at: u64,
 }
@@ -463,6 +467,7 @@ impl AppState {
             sidebar_collapsed: false,
             modal: None,
             notice: None,
+            archived_filters: HashMap::new(),
             started_at: session::now_secs(),
         }
     }
@@ -515,6 +520,7 @@ impl AppState {
                 .map(|wt| wt.path.clone())
                 .collect::<Vec<_>>()
         };
+        self.archived_filters.remove(&id);
         for path in hidden_paths {
             self.close_tabs_in_worktree(&path);
         }
@@ -632,11 +638,24 @@ impl AppState {
     /// The project's visible sidebar rows, in display order. Archived rows go
     /// last, ordered by archive time (most recently archived first).
     pub fn worktree_entries(&self, project: &Project) -> Vec<WorktreeEntry> {
+        let filter = if project.show_archived {
+            self.archived_filters
+                .get(&project.id)
+                .map(|f| f.trim().to_lowercase())
+                .unwrap_or_default()
+        } else {
+            String::new()
+        };
+        let hidden = |archived: bool, name: &str| {
+            archived
+                && (!project.show_archived
+                    || (!filter.is_empty() && !name.to_lowercase().contains(&filter)))
+        };
         let mut entries: Vec<WorktreeEntry> = Vec::new();
         let mut archived_entries: Vec<WorktreeEntry> = Vec::new();
         for worktree in sorted_worktrees(&project.worktrees, &project.worktree_order) {
             let archived = project.archived.contains(&worktree.name);
-            if archived && !project.show_archived {
+            if hidden(archived, &worktree.name) {
                 continue;
             }
             let tab = self
@@ -660,7 +679,7 @@ impl AppState {
             {
                 let worktree = Worktree::placeholder(path.clone());
                 let archived = project.archived.contains(&worktree.name);
-                if archived && !project.show_archived {
+                if hidden(archived, &worktree.name) {
                     continue;
                 }
                 let entry = WorktreeEntry {
@@ -1140,16 +1159,25 @@ pub fn open_project(mut station: AppStation, info: ProjectInfo) {
 }
 
 /// Refresh a project's worktrees in the background, writing only on change.
-pub fn refresh_worktrees(mut station: AppStation, project_id: ProjectId) {
+pub fn refresh_worktrees(station: AppStation, project_id: ProjectId) {
+    refresh_worktrees_scoped(station, project_id, false);
+}
+
+/// Refresh even where diffs are normally skipped: archived rows and collapsed projects.
+pub fn force_refresh_worktrees(station: AppStation, project_id: ProjectId) {
+    refresh_worktrees_scoped(station, project_id, true);
+}
+
+fn refresh_worktrees_scoped(mut station: AppStation, project_id: ProjectId, forced: bool) {
     let Some((main, skip_diffs, skip_all)) = ({
         let state = station.peek();
         state.project(project_id).map(|p| {
-            let hidden = if p.show_archived {
+            let hidden = if forced || p.show_archived {
                 vec![]
             } else {
                 p.archived.clone()
             };
-            (p.main.clone(), hidden, p.collapsed)
+            (p.main.clone(), hidden, p.collapsed && !forced)
         })
     }) else {
         return;
@@ -1262,11 +1290,37 @@ pub fn restore_session(mut station: AppStation, saved: &Session) {
                 continue;
             };
             opened_roots.push(info.root.clone());
+            let main = info.main.clone();
             let project_id = station.write_channel(AppChannel::Tabs).add_project(info);
+            let skip_diffs = station
+                .peek()
+                .project(project_id)
+                .map(|p| p.archived.clone())
+                .unwrap_or_default();
+            let worktrees = git::run_async(move || git::list_worktrees(&main, &skip_diffs, false))
+                .await
+                .unwrap_or_default();
+            let clean: HashSet<&Path> = worktrees
+                .iter()
+                .filter(|wt| wt.diff.is_some_and(|d| d.is_clean()))
+                .map(|wt| wt.path.as_path())
+                .collect();
             for tab in &saved_project.tabs {
+                if tab.worktree.as_deref().is_some_and(|wt| clean.contains(wt)) {
+                    continue;
+                }
                 restore_tab(station, tab, Some(project_id));
             }
-            refresh_worktrees(station, project_id);
+            let mut state = station.write_channel(AppChannel::Tabs);
+            let has_tabs = state.tabs.iter().any(|t| t.project == Some(project_id));
+            if let Some(project) = state.project_mut(project_id) {
+                if !worktrees.is_empty() {
+                    project.worktrees = worktrees;
+                }
+                if !has_tabs {
+                    project.collapsed = true;
+                }
+            }
         }
         session::touch_recent_projects(&opened_roots);
         for tab in &loose_tabs {
