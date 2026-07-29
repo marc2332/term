@@ -429,6 +429,22 @@ impl Tab {
         }
     }
 
+    /// Make `panel` the active one, reporting the focus change to both programs.
+    pub fn activate_panel(&mut self, panel: AccessibilityId) {
+        panel.request_focus();
+        if self.active_panel == panel {
+            return;
+        }
+        if let Some(old) = self.panels.handle(self.active_panel) {
+            old.focus_changed(false);
+        }
+        self.active_panel = panel;
+        self.update_title_from_active_panel();
+        if let Some(new) = self.panels.handle(panel) {
+            new.focus_changed(true);
+        }
+    }
+
     pub fn update_title_from_active_panel(&mut self) {
         if let Some(handle) = self.panels.handle(self.active_panel) {
             if let Some(title) = handle.title() {
@@ -780,6 +796,7 @@ impl AppState {
         let tab_id = tab.id;
         let panel_id = tab.active_panel;
         let handle = tab.panels.leaf_handle().unwrap().clone();
+        self.unfocus_active_panel();
         self.tabs.push(tab);
         self.active_tab = self.tabs.len() - 1;
         self.focus_active_panel();
@@ -805,6 +822,18 @@ impl AppState {
     pub fn focus_active_panel(&self) {
         if let Some(tab) = self.active_tab() {
             tab.active_panel.request_focus();
+            if let Some(handle) = tab.panels.handle(tab.active_panel) {
+                handle.focus_changed(true);
+            }
+        }
+    }
+
+    /// Report the active panel's program as unfocused, before switching away from it.
+    fn unfocus_active_panel(&self) {
+        if let Some(tab) = self.active_tab()
+            && let Some(handle) = tab.panels.handle(tab.active_panel)
+        {
+            handle.focus_changed(false);
         }
     }
 
@@ -820,6 +849,9 @@ impl AppState {
 
     pub fn switch_to_tab(&mut self, tab_id: TabId) {
         if let Some(idx) = self.tabs.iter().position(|t| t.id == tab_id) {
+            if idx != self.active_tab {
+                self.unfocus_active_panel();
+            }
             self.active_tab = idx;
             self.focus_active_panel();
         }
@@ -939,6 +971,7 @@ impl AppState {
 
     pub fn split(&mut self, axis: Axis) -> Option<(AccessibilityId, TerminalHandle)> {
         let cwd = self.active_cwd();
+        self.unfocus_active_panel();
         let (new_id, new_leaf) = PanelNode::new_leaf(&self.shell, cwd);
         let tab = self.active_tab_mut()?;
         let new_handle = new_leaf.leaf_handle().unwrap().clone();
@@ -976,9 +1009,7 @@ impl AppState {
                 let leaves = new_root.leaves();
                 tab.panels = new_root;
                 if let Some(panel) = leaves.into_iter().last() {
-                    tab.active_panel = panel;
-                    tab.update_title_from_active_panel();
-                    panel.request_focus();
+                    tab.activate_panel(panel);
                 }
             }
         }
@@ -988,9 +1019,7 @@ impl AppState {
         if let Some(tab) = self.active_tab_mut()
             && let Some(neighbour) = tab.panels.find_neighbour(tab.active_panel, dir)
         {
-            tab.active_panel = neighbour;
-            tab.update_title_from_active_panel();
-            neighbour.request_focus();
+            tab.activate_panel(neighbour);
         }
     }
 

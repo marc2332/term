@@ -156,9 +156,8 @@ impl Component for Panel {
                     .on_mouse_down({
                         let handle = handle.clone();
                         move |event: Event<MouseEventData>| {
-                            panel_id.request_focus();
                             radio.write_channel(AppChannel::Tabs).tabs.iter_mut()
-                                .find(|tab| tab.id == tab_id).unwrap().active_panel = panel_id;
+                                .find(|tab| tab.id == tab_id).unwrap().activate_panel(panel_id);
                             if let Some((row, col)) = to_cell(event.global_location) {
                                 is_pressed.set(true);
                                 click_origin.set(Some((row as usize, col as usize)));

@@ -44,7 +44,7 @@ fn worktree_row_height(row: &WorktreeRow) -> f32 {
     } else if dirty {
         44.
     } else {
-        34.
+        28.
     }
 }
 
@@ -265,7 +265,7 @@ fn pill_button(
     on_press: impl FnMut(Event<PressEventData>) + 'static,
 ) -> impl IntoElement {
     rect().width(Size::flex(1.)).child(
-        TooltipContainer::new(Tooltip::new(tooltip))
+        TooltipContainer::new(Tooltip::new_text(tooltip))
             .position(AttachedPosition::Top)
             .child(
                 Button::new()
@@ -367,7 +367,7 @@ fn draggable_tab(mut radio: AppRadio, tab: TabButton) -> Element {
     rect()
         .width(Size::fill())
         .child(
-            TooltipContainer::new(Tooltip::new(tooltip))
+            TooltipContainer::new(Tooltip::new_text(tooltip))
                 .position(AttachedPosition::Right)
                 .child(zone),
         )
@@ -424,7 +424,7 @@ fn draggable_worktree_row(mut radio: AppRadio, row: WorktreeRow) -> Element {
     rect()
         .width(Size::fill())
         .child(
-            TooltipContainer::new(Tooltip::new(tooltip))
+            TooltipContainer::new(Tooltip::new_text(tooltip))
                 .position(AttachedPosition::Right)
                 .child(zone),
         )
@@ -504,7 +504,7 @@ fn header_action(
     tooltip: &'static str,
     on_press: impl FnMut(Event<PressEventData>) + 'static,
 ) -> Element {
-    TooltipContainer::new(Tooltip::new(tooltip))
+    TooltipContainer::new(Tooltip::new_text(tooltip))
         .position(AttachedPosition::Top)
         .child(
             Button::new()
