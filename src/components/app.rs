@@ -256,7 +256,7 @@ impl Component for App {
                         ResizableContainer::new()
                             .direction(Direction::Horizontal)
                             .panel(
-                                ResizablePanel::new(PanelSize::px(200.))
+                                ResizablePanel::new(PanelSize::px(240.))
                                     .min_size(138.)
                                     .child(TabBar),
                             )
