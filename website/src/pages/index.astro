@@ -63,10 +63,67 @@ const features = [
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" href="/icon.png" />
-    <title>marcterm</title>
+    <title>marcterm - A fast GPU-accelerated terminal emulator for parallel coding and AI agents</title>
     <meta
       name="description"
-      content="marcterm is a terminal emulator built with Freya and Rust."
+      content="marcterm is a fast, GPU-accelerated terminal emulator built with Rust and Freya. Split panels, tabs, git worktrees and keyboard-driven workflows, ideal for coding and running AI agents."
+    />
+    <meta
+      name="keywords"
+      content="terminal, terminal emulator, marcterm, coding, developer tools, AI, AI agents, agentic coding, Claude Code, opencode, Codex, Rust, Freya, GPU accelerated, split panels, tabs, git worktrees, Linux terminal"
+    />
+    <meta name="author" content="Marc Espin" />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#0f0f0f" />
+    <link rel="canonical" href="https://term.mespin.me/" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="marcterm" />
+    <meta property="og:title" content="marcterm - A fast terminal emulator for parallel coding and AI agents" />
+    <meta
+      property="og:description"
+      content="A fast, GPU-accelerated terminal emulator built with Rust and Freya. Split panels, tabs, git worktrees and keyboard-driven workflows for parallel coding and AI agents."
+    />
+    <meta property="og:url" content="https://term.mespin.me/" />
+    <meta property="og:image" content="https://term.mespin.me/screenshot.png" />
+    <meta property="og:image:alt" content="marcterm terminal emulator with split panels and a project sidebar" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="marcterm - A fast terminal emulator for parallel coding and AI agents" />
+    <meta
+      name="twitter:description"
+      content="A fast, GPU-accelerated terminal emulator built with Rust and Freya. Split panels, tabs, git worktrees and keyboard-driven workflows for parallel coding and AI agents."
+    />
+    <meta name="twitter:image" content="https://term.mespin.me/screenshot.png" />
+    <meta name="twitter:creator" content="@marc2332" />
+
+    <script
+      type="application/ld+json"
+      set:html={JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        name: "marcterm",
+        applicationCategory: "DeveloperApplication",
+        operatingSystem: "Linux",
+        description:
+          "A fast, GPU-accelerated terminal emulator built with Rust and Freya. Split panels, tabs, git worktrees and keyboard-driven workflows for parallel coding and AI agents.",
+        url: "https://term.mespin.me/",
+        image: "https://term.mespin.me/screenshot.png",
+        offers: {
+          "@type": "Offer",
+          price: "0",
+          priceCurrency: "USD",
+        },
+        author: {
+          "@type": "Person",
+          name: "Marc Espin",
+          url: "https://mespin.me",
+          sameAs: ["https://github.com/marc2332"],
+        },
+        codeRepository: "https://github.com/marc2332/term",
+      })}
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -83,35 +140,43 @@ const features = [
         <img class="logo" src="/icon.png" alt="marcterm logo" width="96" height="96" />
         <h1>marcterm</h1>
         <p class="tagline">
-          A terminal emulator built with
-          <a href="https://github.com/marc2332/freya">Freya</a> and Rust.
+          A fast and powerful terminal emulator tailored for parallel coding
+          and AI agents, built with
+          <a href="https://freyaui.dev">Freya</a> and Rust.
         </p>
         <div class="actions">
           <a class="button primary" href="#install">Install</a>
-          <a class="button" href="https://github.com/marc2332/term">GitHub</a>
+          <a class="button" href="https://github.com/marc2332/term">Source code</a>
         </div>
       </header>
 
       <section class="shot">
         <img
           src="/screenshot.png"
-          alt="marcterm running with split panels and the sidebar open"
+          alt="marcterm terminal emulator running with split panels and the project sidebar open"
         />
       </section>
 
       <section class="about">
         <p>
-          marcterm is a fast, minimal terminal emulator for people who like to
-          keep several sessions going at once. Group your work into projects,
-          jump between sessions from the home view, and split any panel into as
-          many panes as you need. Everything is keyboard driven, so your hands
-          never have to leave the home row.
+          <strong>marcterm</strong> is a fast, minimal terminal emulator for
+          people who like to keep several coding sessions going at once. Group
+          your work into projects, jump between sessions from the home view,
+          and split any panel into as many panes as you need. Everything is
+          keyboard driven, so your hands never have to leave the home row.
+        </p>
+        <p>
+          It is also a great fit for agentic workflows. Run AI coding agents
+          like Claude Code, opencode or Codex side by side in split panels, and
+          keep each agent on its own git worktree with live diff stats in the
+          sidebar.
         </p>
         <p>
           It is written in Rust on top of
-          <a href="https://github.com/marc2332/freya">Freya</a>, a native GUI
-          framework powered by Skia. That means real GPU rendering, low input
-          latency, and a small footprint.
+          <a href="https://freyaui.dev">Freya</a>, a native GUI
+          framework. That means real GPU rendering, low input latency, and a
+          small footprint. The full source code is available
+          <a href="https://github.com/marc2332/term">on GitHub</a>.
         </p>
       </section>
 
@@ -153,14 +218,16 @@ flatpak install --user marcterm io.marc.term</code></pre>
         </div>
         <div class="install-block">
           <h3>Cargo</h3>
-          <pre><code>cargo install marcterm</code></pre>
+          <pre><code>cargo install --git https://github.com/marc2332/term</code></pre>
         </div>
       </section>
 
       <footer>
         <p>
-          Made by <a href="https://github.com/marc2332">Marc Espin</a> ·
-          <a href="https://github.com/marc2332/term">Source on GitHub</a>
+          <strong>marcterm</strong> is made by
+          <a href="https://mespin.me">Marc Espin</a> ·
+          <a href="https://github.com/marc2332">GitHub</a> ·
+          <a href="https://github.com/marc2332/term">Source code</a>
         </p>
       </footer>
     </main>
@@ -285,6 +352,10 @@ flatpak install --user marcterm io.marc.term</code></pre>
         font-size: 1.15rem;
         color: rgb(170, 170, 175);
         margin-top: 8px;
+        max-width: 34em;
+        margin-left: auto;
+        margin-right: auto;
+        text-wrap: balance;
       }
 
       .actions {

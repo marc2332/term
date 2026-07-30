@@ -27,7 +27,7 @@ flatpak install --user marcterm io.marc.term
 ### Cargo
 
 ```sh
-cargo install marcterm
+cargo install --git https://github.com/marc2332/term
 ```
 
 ## ✨ Features
