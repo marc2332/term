@@ -325,7 +325,7 @@ fn bottom_actions(mut radio: AppRadio, station: AppStation, compact: bool) -> El
     }
 }
 
-fn drag_preview(content: impl IntoElement) -> Rect {
+pub(crate) fn drag_preview(content: impl IntoElement) -> Rect {
     rect()
         .width(Size::px(200.))
         .background((45, 45, 45))

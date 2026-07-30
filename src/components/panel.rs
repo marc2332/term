@@ -1,6 +1,7 @@
 use freya::radio::*;
 use freya::{prelude::*, terminal::*};
 
+use crate::components::tab_bar::drag_preview;
 use crate::state::{AppChannel, PanelNode, TabId};
 
 #[derive(PartialEq, Clone)]
@@ -10,6 +11,14 @@ pub struct Panel {
     pub handle: TerminalHandle,
     pub font_size: f32,
 }
+
+/// Whether Alt is held, enabling panel dragging. Provided by the app root.
+#[derive(Clone, Copy, PartialEq)]
+pub struct AltHeld(pub State<bool>);
+
+/// Payload for alt-dragging a panel onto another to swap them.
+#[derive(PartialEq, Clone)]
+struct PanelDrag(AccessibilityId);
 
 impl Component for Panel {
     fn render(&self) -> impl IntoElement {
@@ -24,6 +33,10 @@ impl Component for Panel {
         let mut terminal_area = use_state(Area::zero);
         let mut is_pressed = use_state(|| false);
         let mut click_origin = use_state(|| None::<(usize, usize)>);
+        let mut drop_hover = use_state(|| false);
+        let drags = use_drag::<PanelDrag>();
+        let alt_held = *use_consume::<AltHeld>().0.read();
+        let drag_active = move || alt_held || drags.read().is_some();
 
         // Global cursor point to terminal cell, clamped to the terminal area.
         let to_cell = move |global: CursorPoint| -> Option<(f32, f32)> {
@@ -56,13 +69,18 @@ impl Component for Panel {
                 !matches!(tab.panels, PanelNode::Leaf(..)),
             )
         };
+        let drop_hovered = *drop_hover.read();
 
-        let bg_color: Color = if is_active {
+        let bg_color: Color = if drop_hovered {
+            (28, 28, 28).into()
+        } else if is_active {
             (10, 10, 10).into()
         } else {
             (15, 15, 15).into()
         };
-        let border = if has_multiple_panels {
+        let border = if drop_hovered {
+            Some(Border::new().fill((160, 160, 160)).width(2.0))
+        } else if has_multiple_panels {
             let border_color: Color = if is_active {
                 (120, 120, 120).into()
             } else {
@@ -73,8 +91,9 @@ impl Component for Panel {
             None
         };
 
-        rect()
+        let panel = rect()
             .expanded()
+            .layer(Layer::OverlayLevel(1))
             .padding(8.)
             .corner_radius(8.)
             .background(bg_color)
@@ -158,6 +177,9 @@ impl Component for Panel {
                         move |event: Event<MouseEventData>| {
                             radio.write_channel(AppChannel::Tabs).tabs.iter_mut()
                                 .find(|tab| tab.id == tab_id).unwrap().activate_panel(panel_id);
+                            if drag_active() {
+                                return;
+                            }
                             if let Some((row, col)) = to_cell(event.global_location) {
                                 is_pressed.set(true);
                                 click_origin.set(Some((row as usize, col as usize)));
@@ -174,6 +196,9 @@ impl Component for Panel {
                     .on_global_pointer_move({
                         let handle = handle.clone();
                         move |event: Event<PointerEventData>| {
+                            if drag_active() {
+                                return;
+                            }
                             let global = event.global_location();
                             if !terminal_area.read().to_f64().contains(global) && !*is_pressed.read() {
                                 return;
@@ -210,12 +235,45 @@ impl Component for Panel {
                     .on_wheel({
                         let handle = handle.clone();
                         move |event: Event<WheelEventData>| {
+                            if drag_active() {
+                                return;
+                            }
                             if let Some((row, col)) = to_cell(event.global_location) {
                                 handle.wheel(event.delta_y, row, col);
                             }
                         }
                     }),
+            );
+
+        DragZone::new(
+            PanelDrag(panel_id),
+            DropZone::new(panel, move |drag: PanelDrag| {
+                radio
+                    .write_channel(AppChannel::Tabs)
+                    .swap_panels(tab_id, drag.0, panel_id);
+            })
+            .on_drag_over(move |over: bool| drop_hover.set_if_modified(over)),
+        )
+        .drag_threshold(if alt_held { 4. } else { f64::INFINITY })
+        .maybe(alt_held, |el| {
+            let title = self
+                .handle
+                .title()
+                .filter(|t| !t.is_empty())
+                .unwrap_or_else(|| "terminal".into());
+            el.drag_element(
+                drag_preview(
+                    label()
+                        .text(title)
+                        .font_size(13.)
+                        .color((230, 230, 230))
+                        .max_lines(1),
+                )
+                .width(Size::auto())
+                .rounded_full()
+                .padding((6., 14.)),
             )
+        })
     }
 
     fn render_key(&self) -> DiffKey {

@@ -322,6 +322,41 @@ impl PanelNode {
         }
     }
 
+    /// Leaf node for `id`, if any.
+    pub fn leaf(&self, id: AccessibilityId) -> Option<&PanelNode> {
+        match self {
+            PanelNode::Leaf(pid, ..) if *pid == id => Some(self),
+            PanelNode::Leaf(..) => None,
+            PanelNode::Horizontal(a, b) | PanelNode::Vertical(a, b) => {
+                a.leaf(id).or_else(|| b.leaf(id))
+            }
+        }
+    }
+
+    /// Swap the positions of two leaves. No-op if either is missing.
+    pub fn swap_leaves(self, a: AccessibilityId, b: AccessibilityId) -> PanelNode {
+        let (Some(a_leaf), Some(b_leaf)) = (self.leaf(a).cloned(), self.leaf(b).cloned()) else {
+            return self;
+        };
+        self.map_leaves(&|leaf| match leaf {
+            PanelNode::Leaf(id, ..) if id == a => b_leaf.clone(),
+            PanelNode::Leaf(id, ..) if id == b => a_leaf.clone(),
+            leaf => leaf,
+        })
+    }
+
+    fn map_leaves(self, f: &impl Fn(PanelNode) -> PanelNode) -> PanelNode {
+        match self {
+            leaf @ PanelNode::Leaf(..) => f(leaf),
+            PanelNode::Horizontal(a, b) => {
+                PanelNode::Horizontal(Box::new(a.map_leaves(f)), Box::new(b.map_leaves(f)))
+            }
+            PanelNode::Vertical(a, b) => {
+                PanelNode::Vertical(Box::new(a.map_leaves(f)), Box::new(b.map_leaves(f)))
+            }
+        }
+    }
+
     pub fn replace_leaf(self, target: AccessibilityId, replacement: PanelNode) -> PanelNode {
         match self {
             PanelNode::Leaf(id, ..) if id == target => replacement,
@@ -1012,6 +1047,12 @@ impl AppState {
                     tab.activate_panel(panel);
                 }
             }
+        }
+    }
+
+    pub fn swap_panels(&mut self, tab_id: TabId, a: AccessibilityId, b: AccessibilityId) {
+        if let Some(tab) = self.tabs.iter_mut().find(|t| t.id == tab_id) {
+            tab.panels = tab.panels.clone().swap_leaves(a, b);
         }
     }
 

@@ -7,6 +7,7 @@ use freya::radio::*;
 use crate::{
     components::{
         modals::ModalHost,
+        panel::AltHeld,
         resizing::{ResizeBands, use_edge_to_edge},
         tab_bar::TabBar,
         tab_content::TabContent,
@@ -95,6 +96,10 @@ impl Component for App {
 
         let mut radio = use_radio(AppChannel::Tabs);
 
+        // Alt enables panel dragging.
+        let mut alt_held = use_state(|| false);
+        use_provide_context(move || AltHeld(alt_held));
+
         use_hook(move || {
             match startup {
                 Startup::Fresh => create_context_tab(station),
@@ -152,6 +157,16 @@ impl Component for App {
             .corner_radius(CornerRadius::new_all(if edge_to_edge() { 0. } else { 12. }))
             .overflow(Overflow::Clip)
             .direction(Direction::Vertical)
+            .on_global_key_down(move |e: Event<KeyboardEventData>| {
+                if e.key == Key::Named(NamedKey::Alt) {
+                    alt_held.set_if_modified(true);
+                }
+            })
+            .on_global_key_up(move |e: Event<KeyboardEventData>| {
+                if e.key == Key::Named(NamedKey::Alt) {
+                    alt_held.set_if_modified(false);
+                }
+            })
             .on_key_down(move |e: Event<KeyboardEventData>| {
                 let mods = e.modifiers;
                 let ctrl = mods.contains(Modifiers::CONTROL);

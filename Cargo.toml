@@ -12,13 +12,13 @@ name = "marcterm"
 path = "src/main.rs"
 
 [dependencies]
-freya = { git = "https://github.com/marc2332/freya", branch = "feat/unfocus-terminal", features = [
+freya = { git = "https://github.com/marc2332/freya", branch = "feat/better-portal", features = [
   "terminal",
   "radio",
   "material-design",
   "icons",
 ] }
-freya-performance-plugin = { git = "https://github.com/marc2332/freya", branch = "feat/unfocus-terminal" }
+freya-performance-plugin = { git = "https://github.com/marc2332/freya", branch = "feat/better-portal" }
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
