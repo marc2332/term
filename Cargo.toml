@@ -27,6 +27,7 @@ dirs = "6"
 futures = "0.3"
 async-io = "2"
 open = "5"
+libc = "0.2"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 xcursor = "0.3"

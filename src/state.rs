@@ -112,12 +112,8 @@ pub enum PanelNode {
     Vertical(Box<PanelNode>, Box<PanelNode>),
 }
 
-fn is_flatpak() -> bool {
-    std::env::var("FLATPAK_ID").is_ok()
-}
-
 fn make_handle(shell: &str, cwd: Option<PathBuf>) -> TerminalHandle {
-    let cmd = if is_flatpak() {
+    let cmd = if git::is_flatpak() {
         let mut cmd = CommandBuilder::new("flatpak-spawn");
         cmd.args(["--host", "--watch-bus"]);
         cmd.arg("--env=TERM=xterm-256color");

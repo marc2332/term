@@ -12,7 +12,7 @@ use freya::prelude::*;
 /// Fall back to Adwaita when the host cursor theme isn't reachable in Flatpak.
 #[cfg(target_os = "linux")]
 fn fix_flatpak_cursor_theme() {
-    if std::env::var("FLATPAK_ID").is_err() {
+    if !crate::git::is_flatpak() {
         return;
     }
 
