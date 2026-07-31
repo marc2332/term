@@ -6,7 +6,8 @@ use serde::{Deserialize, Serialize};
 use crate::git;
 use crate::state::{AppState, PanelNode, Tab};
 
-const MAX_SESSIONS: usize = 10;
+const MAX_SESSIONS: usize = 7;
+const MAX_RECENT_PROJECTS: usize = 7;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum PanelLayout {
@@ -119,7 +120,9 @@ fn save_json<T: Serialize>(file: &str, value: &T) {
 }
 
 pub fn load_recent_projects() -> Vec<RecentProject> {
-    load_json("projects.json").unwrap_or_default()
+    let mut recent: Vec<RecentProject> = load_json("projects.json").unwrap_or_default();
+    recent.truncate(MAX_RECENT_PROJECTS);
+    recent
 }
 
 /// Move `roots` to the front of the recent-projects history, in order.
@@ -129,7 +132,7 @@ pub fn touch_recent_projects(roots: &[PathBuf]) {
         recent.retain(|p| &p.root != root);
         recent.insert(0, RecentProject { root: root.clone() });
     }
-    recent.truncate(20);
+    recent.truncate(MAX_RECENT_PROJECTS);
     save_json("projects.json", &recent);
 }
 
@@ -146,6 +149,7 @@ pub fn remove_recent_project(root: &Path) {
 pub fn load_sessions() -> Vec<Session> {
     let mut sessions: Vec<Session> = load_json("sessions.json").unwrap_or_default();
     sessions.retain(|s| !s.is_empty());
+    sessions.truncate(MAX_SESSIONS);
     sessions
 }
 
