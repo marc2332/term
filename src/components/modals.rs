@@ -98,6 +98,13 @@ impl Component for AboutModal {
                                 .text(format!("Version {}", env!("CARGO_PKG_VERSION")))
                                 .font_size(13.)
                                 .color((150, 150, 150)),
+                        )
+                        .child(
+                            rect()
+                                .horizontal()
+                                .spacing(16.)
+                                .child(link("Website", "https://term.mespin.me"))
+                                .child(link("Source code", "https://github.com/marc2332/term")),
                         ),
                 ),
             )
@@ -112,6 +119,10 @@ impl Component for AboutModal {
                 ),
             )
     }
+}
+
+fn link(text: &'static str, url: &'static str) -> Link {
+    Link::new(url).child(label().text(text).font_size(13.).color((100, 145, 235)))
 }
 
 #[derive(PartialEq, Clone)]

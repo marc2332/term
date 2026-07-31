@@ -17,6 +17,7 @@ freya = { git = "https://github.com/marc2332/freya", branch = "feat/better-porta
   "radio",
   "material-design",
   "icons",
+  "router",
 ] }
 freya-performance-plugin = { git = "https://github.com/marc2332/freya", branch = "feat/better-portal" }
 clap = { version = "4", features = ["derive"] }
