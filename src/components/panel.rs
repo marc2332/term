@@ -10,6 +10,7 @@ pub struct Panel {
     pub tab_id: TabId,
     pub handle: TerminalHandle,
     pub font_size: f32,
+    pub font_family: Option<String>,
 }
 
 /// Whether Alt is held, enabling panel dragging. Provided by the app root.
@@ -24,6 +25,7 @@ impl Component for Panel {
     fn render(&self) -> impl IntoElement {
         let panel_id = self.panel_id;
         let font_size = self.font_size;
+        let font_family = self.font_family.clone();
         let tab_id = self.tab_id;
         let handle = self.handle.clone();
 
@@ -166,10 +168,15 @@ impl Component for Panel {
                     }
                 }
             })
-            .child(
-                Terminal::new(handle.clone())
+            .child({
+                let terminal = Terminal::new(handle.clone())
                     .background(bg_color)
-                    .font_size(font_size)
+                    .font_size(font_size);
+                let terminal = match font_family {
+                    Some(font_family) => terminal.font_family(font_family),
+                    None => terminal,
+                };
+                terminal
                     .on_measured(move |(char_width, line_height)| cell_size.set(Size2D::new(char_width, line_height)))
                     .on_sized(move |event: Event<SizedEventData>| terminal_area.set(event.area))
                     .on_mouse_down({
@@ -242,8 +249,8 @@ impl Component for Panel {
                                 handle.wheel(event.delta_y, row, col);
                             }
                         }
-                    }),
-            );
+                    })
+            });
 
         DragZone::new(
             PanelDrag(panel_id),

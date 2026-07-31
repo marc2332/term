@@ -82,6 +82,9 @@ shell = "bash"
 
 # Font size in logical pixels.
 font_size = 14.0
+
+# Font family used by the terminal. Uses freya's default when not set.
+# font_family = "Cascadia Code"
 ```
 
 Copy the bundled `marcterm.demo.toml` as a starting point:

@@ -26,6 +26,10 @@ pub struct Config {
     #[serde(default = "default_font_size")]
     pub font_size: f32,
 
+    /// Font family used by the terminal. Uses freya's default when not set.
+    #[serde(default)]
+    pub font_family: Option<String>,
+
     /// What to show on launch: "welcome", "restore-last" or "fresh".
     #[serde(default)]
     pub startup: Startup,
@@ -76,6 +80,7 @@ impl Default for Config {
         Self {
             shell: default_shell(),
             font_size: default_font_size(),
+            font_family: None,
             startup: Startup::default(),
         }
     }

@@ -493,6 +493,7 @@ pub struct AppState {
     pub active_tab: usize,
     pub projects: Vec<Project>,
     pub font_size: f32,
+    pub font_family: Option<String>,
     pub shell: String,
     pub sidebar_collapsed: bool,
     pub modal: Option<Modal>,
@@ -504,12 +505,13 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(font_size: f32, shell: String) -> Self {
+    pub fn new(font_size: f32, font_family: Option<String>, shell: String) -> Self {
         Self {
             tabs: vec![],
             active_tab: 0,
             projects: vec![],
             font_size,
+            font_family,
             shell,
             sidebar_collapsed: false,
             modal: None,

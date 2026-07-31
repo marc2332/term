@@ -25,6 +25,7 @@ use crate::{
 #[derive(PartialEq, Clone)]
 pub struct App {
     pub font_size: f32,
+    pub font_family: Option<String>,
     pub shell: String,
     pub startup: Startup,
 }
@@ -32,6 +33,7 @@ pub struct App {
 impl Component for App {
     fn render(&self) -> impl IntoElement {
         let font_size = self.font_size;
+        let font_family = self.font_family.clone();
         let shell = self.shell.clone();
         let startup = self.startup;
 
@@ -91,7 +93,7 @@ impl Component for App {
             theme
         });
         let station = use_init_radio_station::<AppState, AppChannel>(move || {
-            AppState::new(font_size, shell.clone())
+            AppState::new(font_size, font_family.clone(), shell.clone())
         });
 
         let mut radio = use_radio(AppChannel::Tabs);

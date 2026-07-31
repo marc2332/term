@@ -17,6 +17,7 @@ impl Component for TabContent {
         let radio = use_radio(AppChannel::Tabs);
         let state = radio.read();
         let font_size = state.font_size;
+        let font_family = state.font_family.as_deref();
 
         if let Some(tab) = state.tabs.get(state.active_tab) {
             rect()
@@ -27,6 +28,7 @@ impl Component for TabContent {
                 .child(render_node(
                     &tab.panels,
                     font_size,
+                    font_family,
                     &tab.id,
                     &tab.panels.leaves(),
                 ))
@@ -40,6 +42,7 @@ impl Component for TabContent {
 fn render_node(
     node: &PanelNode,
     font_size: f32,
+    font_family: Option<&str>,
     tab_id: &TabId,
     leaves: &[AccessibilityId],
 ) -> impl IntoElement {
@@ -56,29 +59,50 @@ fn render_node(
                 panel_id: *panel_id,
                 handle: handle.clone(),
                 font_size,
+                font_family: font_family.map(str::to_string),
                 tab_id: *tab_id,
             })
             .into_element(),
         PanelNode::Horizontal(left, right) => ResizableContainer::new()
             .direction(Direction::Horizontal)
             .panel(
-                ResizablePanel::new(PanelSize::percent(50.))
-                    .child(render_node(left, font_size, tab_id, leaves)),
+                ResizablePanel::new(PanelSize::percent(50.)).child(render_node(
+                    left,
+                    font_size,
+                    font_family,
+                    tab_id,
+                    leaves,
+                )),
             )
             .panel(
-                ResizablePanel::new(PanelSize::percent(50.))
-                    .child(render_node(right, font_size, tab_id, leaves)),
+                ResizablePanel::new(PanelSize::percent(50.)).child(render_node(
+                    right,
+                    font_size,
+                    font_family,
+                    tab_id,
+                    leaves,
+                )),
             )
             .into_element(),
         PanelNode::Vertical(top, bottom) => ResizableContainer::new()
             .direction(Direction::Vertical)
             .panel(
-                ResizablePanel::new(PanelSize::percent(50.))
-                    .child(render_node(top, font_size, tab_id, leaves)),
+                ResizablePanel::new(PanelSize::percent(50.)).child(render_node(
+                    top,
+                    font_size,
+                    font_family,
+                    tab_id,
+                    leaves,
+                )),
             )
             .panel(
-                ResizablePanel::new(PanelSize::percent(50.))
-                    .child(render_node(bottom, font_size, tab_id, leaves)),
+                ResizablePanel::new(PanelSize::percent(50.)).child(render_node(
+                    bottom,
+                    font_size,
+                    font_family,
+                    tab_id,
+                    leaves,
+                )),
             )
             .into_element(),
     }
