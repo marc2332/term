@@ -2,6 +2,7 @@ mod components;
 mod config;
 mod git;
 mod session;
+mod shortcuts;
 mod state;
 
 use clap::Parser;

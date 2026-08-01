@@ -46,35 +46,35 @@ cargo install --git https://github.com/marc2332/term
 
 ### Tabs
 
-| Shortcut | Action |
-|---|---|
-| `Ctrl+Shift+T` | New tab |
-| `Ctrl+Shift+W` | Close active tab |
-| `Ctrl+Tab` | Next tab |
-| `Ctrl+Shift+Tab` | Previous tab |
+| Linux / Windows | macOS | Action |
+|---|---|---|
+| `Ctrl+Shift+T` | `Cmd+T` | New tab |
+| `Ctrl+Shift+W` | `Cmd+W` | Close active tab |
+| `Ctrl+Tab` | `Ctrl+Tab` | Next tab |
+| `Ctrl+Shift+Tab` | `Ctrl+Shift+Tab` | Previous tab |
 
 ### Panels
 
-| Shortcut | Action |
-|---|---|
-| `Alt+P` | Split panel vertically (top/bottom) |
-| `Alt++ / Alt+=` | Split panel horizontally (left/right) |
-| `Alt+-` | Close active panel |
-| `Alt+1` | Close all panels except active |
-| `Alt+←` | Focus panel to the left |
-| `Alt+→` | Focus panel to the right |
-| `Alt+↑` | Focus panel above |
-| `Alt+↓` | Focus panel below |
+| Linux / Windows | macOS | Action |
+|---|---|---|
+| `Alt+P` | `Option+P` | Split panel vertically (top/bottom) |
+| `Alt++ / Alt+=` | `Option++ / Option+=` | Split panel horizontally (left/right) |
+| `Alt+-` | `Option+-` | Close active panel |
+| `Alt+1` | `Option+1` | Close all panels except active |
+| `Alt+←` | `Option+←` | Focus panel to the left |
+| `Alt+→` | `Option+→` | Focus panel to the right |
+| `Alt+↑` | `Option+↑` | Focus panel above |
+| `Alt+↓` | `Option+↓` | Focus panel below |
 
 ### General
 
-| Shortcut | Action |
-|---|---|
-| `Alt+B` | Toggle sidebar (expanded / collapsed) |
-| `Ctrl++ / Ctrl+=` | Increase font size |
-| `Ctrl+-` | Decrease font size |
-| `Ctrl+Shift+C` | Copy selected text |
-| `Ctrl+Shift+V` | Paste from clipboard |
+| Linux / Windows | macOS | Action |
+|---|---|---|
+| `Alt+B` | `Option+B` | Toggle sidebar (expanded / collapsed) |
+| `Ctrl++ / Ctrl+=` | `Cmd++ / Cmd+=` | Increase font size |
+| `Ctrl+-` | `Cmd+-` | Decrease font size |
+| `Ctrl+Shift+C` | `Cmd+C` | Copy selected text |
+| `Ctrl+Shift+V` | `Cmd+V` | Paste from clipboard |
 
 ## ⚙️ Configuration
 

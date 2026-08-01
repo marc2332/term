@@ -16,9 +16,10 @@ use crate::{
     },
     config::Startup,
     session,
+    shortcuts::{self, Shortcut},
     state::{
-        AppChannel, AppState, Axis, Modal, NavDirection, create_context_tab, refresh_worktrees,
-        restore_session, split_active_panel,
+        AppChannel, AppState, Axis, Modal, create_context_tab, refresh_worktrees, restore_session,
+        split_active_panel,
     },
 };
 
@@ -170,71 +171,40 @@ impl Component for App {
                 }
             })
             .on_key_down(move |e: Event<KeyboardEventData>| {
-                let mods = e.modifiers;
-                let ctrl = mods.contains(Modifiers::CONTROL);
-                let ctrl_shift = mods.contains(Modifiers::CONTROL | Modifiers::SHIFT);
-                let alt = mods.contains(Modifiers::ALT);
-
-                match &e.key {
-                    Key::Character(ch) if ctrl_shift && ch.eq_ignore_ascii_case("t") => {
-                        create_context_tab(station);
-                    }
-                    Key::Character(ch) if ctrl_shift && ch.eq_ignore_ascii_case("w") => {
-                        radio.write_channel(AppChannel::Tabs).close_active_tab();
-                    }
-                    Key::Character(ch) if ctrl_shift && ch.eq_ignore_ascii_case("o") => {
+                let Some(shortcut) = shortcuts::resolve(&e) else {
+                    return;
+                };
+                match shortcut {
+                    Shortcut::NewTab => create_context_tab(station),
+                    Shortcut::CloseTab => radio.write_channel(AppChannel::Tabs).close_active_tab(),
+                    Shortcut::AddProject => {
                         radio.write_channel(AppChannel::Tabs).modal = Some(Modal::AddProject);
                     }
-                    Key::Named(NamedKey::Tab) if ctrl && !mods.contains(Modifiers::SHIFT) => {
-                        radio.write_channel(AppChannel::Tabs).next_tab();
-                    }
-                    Key::Named(NamedKey::Tab) if ctrl_shift => {
-                        radio.write_channel(AppChannel::Tabs).prev_tab();
-                    }
-                    Key::Character(ch) if alt && ch.eq_ignore_ascii_case("p") => {
-                        split_active_panel(station, Axis::Vertical);
-                    }
-                    Key::Character(ch) if alt && (ch == "+" || ch == "=") => {
-                        split_active_panel(station, Axis::Horizontal);
-                    }
-                    Key::Character(ch) if alt && ch == "-" => {
+                    Shortcut::NextTab => radio.write_channel(AppChannel::Tabs).next_tab(),
+                    Shortcut::PrevTab => radio.write_channel(AppChannel::Tabs).prev_tab(),
+                    Shortcut::SplitVertical => split_active_panel(station, Axis::Vertical),
+                    Shortcut::SplitHorizontal => split_active_panel(station, Axis::Horizontal),
+                    Shortcut::ClosePanel => {
                         radio.write_channel(AppChannel::Tabs).close_active_panel();
                     }
-                    Key::Character(ch) if alt && ch == "1" => {
+                    Shortcut::CloseOtherPanels => {
                         radio
                             .write_channel(AppChannel::Tabs)
                             .close_all_except_active();
                     }
-                    Key::Character(ch) if alt && ch.eq_ignore_ascii_case("b") => {
+                    Shortcut::ToggleSidebar => {
                         radio.write_channel(AppChannel::Tabs).toggle_sidebar();
                     }
-                    Key::Named(NamedKey::ArrowLeft) if alt => {
-                        radio
-                            .write_channel(AppChannel::Tabs)
-                            .navigate(NavDirection::Left);
+                    Shortcut::Navigate(direction) => {
+                        radio.write_channel(AppChannel::Tabs).navigate(direction);
                     }
-                    Key::Named(NamedKey::ArrowRight) if alt => {
-                        radio
-                            .write_channel(AppChannel::Tabs)
-                            .navigate(NavDirection::Right);
-                    }
-                    Key::Named(NamedKey::ArrowUp) if alt => {
-                        radio
-                            .write_channel(AppChannel::Tabs)
-                            .navigate(NavDirection::Up);
-                    }
-                    Key::Named(NamedKey::ArrowDown) if alt => {
-                        radio
-                            .write_channel(AppChannel::Tabs)
-                            .navigate(NavDirection::Down);
-                    }
-                    Key::Character(ch) if ctrl && (ch == "+" || ch == "=") => {
+                    Shortcut::IncreaseFontSize => {
                         radio.write_channel(AppChannel::Tabs).increase_font_size();
                     }
-                    Key::Character(ch) if ctrl && ch == "-" => {
+                    Shortcut::DecreaseFontSize => {
                         radio.write_channel(AppChannel::Tabs).decrease_font_size();
                     }
-                    _ => {}
+                    Shortcut::Copy | Shortcut::Paste => {}
                 }
             })
             .child(app_backdrop())

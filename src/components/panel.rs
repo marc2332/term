@@ -2,6 +2,7 @@ use freya::radio::*;
 use freya::{prelude::*, terminal::*};
 
 use crate::components::tab_bar::drag_preview;
+use crate::shortcuts::{self, Shortcut};
 use crate::state::{AppChannel, PanelNode, TabId};
 
 #[derive(PartialEq, Clone)]
@@ -113,57 +114,27 @@ impl Component for Panel {
             .on_key_down({
                 let handle = handle.clone();
                 move |e: Event<KeyboardEventData>| {
-                    let mods = e.modifiers;
-                    let ctrl_shift = mods.contains(Modifiers::CONTROL | Modifiers::SHIFT);
-                    let ctrl = mods.contains(Modifiers::CONTROL);
-                    let alt = mods.contains(Modifiers::ALT);
-
-                    let is_shortcut = (ctrl_shift && matches!(&e.key, Key::Character(ch) if matches!(ch.to_lowercase().as_str(), "t" | "w" | "o")))
-                        || (ctrl && matches!(&e.key, Key::Named(NamedKey::Tab)))
-                        || (alt && matches!(&e.key, Key::Character(ch) if ch.eq_ignore_ascii_case("p") || ch.eq_ignore_ascii_case("b") || ch == "1"))
-                        || (alt && matches!(&e.key, Key::Character(ch) if ch == "+" || ch == "=" || ch == "-"))
-                        || (ctrl && matches!(&e.key, Key::Character(ch) if ch == "+" || ch == "=" || ch == "-"))
-                        || (alt && matches!(&e.key, Key::Named(NamedKey::ArrowLeft | NamedKey::ArrowRight | NamedKey::ArrowUp | NamedKey::ArrowDown)));
-
-                    if is_shortcut {
-                        return;
-                    }
-
-                    if matches!(&e.key, Key::Named(NamedKey::Tab)) {
-                        e.prevent_default();
-                        e.stop_propagation();
-                    }
-
-                   match &e.key {
-                        Key::Character(ch)
-                            if ctrl_shift && ch.eq_ignore_ascii_case("c") =>
-                        {
+                    match shortcuts::resolve(&e) {
+                        Some(Shortcut::Copy) => {
                             if let Some(text) = handle.get_selected_text() {
                                 let _ = Clipboard::set(text);
                             }
                         }
-                        Key::Character(ch)
-                            if ctrl_shift && ch.eq_ignore_ascii_case("v") =>
-                        {
+                        Some(Shortcut::Paste) => {
                             if let Ok(text) = Clipboard::get() {
                                 let _ = handle.paste(&text);
                             }
                         }
-                        Key::Named(NamedKey::Home) => {
-                            handle.scroll(i32::MAX);
-                            if handle.term().grid().display_offset() == 0 {
-                                let _ = handle.write(b"\x1b[H");
+                        Some(_) => {}
+                        None => {
+                            if matches!(&e.key, Key::Named(NamedKey::Tab)) {
+                                e.prevent_default();
+                                e.stop_propagation();
                             }
-                        }
-                        Key::Named(NamedKey::End) => {
-                            if handle.term().grid().display_offset() == 0 {
-                                let _ = handle.write(b"\x1b[F");
-                            } else {
-                                handle.scroll_to_bottom();
+                            // Cmd combos never reach the shell on macOS.
+                            if !shortcuts::reserved_for_app(e.modifiers) {
+                                let _ = handle.write_key(&e.key, e.modifiers);
                             }
-                        }
-                        _ => {
-                            let _ = handle.write_key(&e.key, e.modifiers);
                         }
                     }
                 }
@@ -177,13 +148,20 @@ impl Component for Panel {
                     None => terminal,
                 };
                 terminal
-                    .on_measured(move |(char_width, line_height)| cell_size.set(Size2D::new(char_width, line_height)))
+                    .on_measured(move |(char_width, line_height)| {
+                        cell_size.set(Size2D::new(char_width, line_height))
+                    })
                     .on_sized(move |event: Event<SizedEventData>| terminal_area.set(event.area))
                     .on_mouse_down({
                         let handle = handle.clone();
                         move |event: Event<MouseEventData>| {
-                            radio.write_channel(AppChannel::Tabs).tabs.iter_mut()
-                                .find(|tab| tab.id == tab_id).unwrap().activate_panel(panel_id);
+                            radio
+                                .write_channel(AppChannel::Tabs)
+                                .tabs
+                                .iter_mut()
+                                .find(|tab| tab.id == tab_id)
+                                .unwrap()
+                                .activate_panel(panel_id);
                             if drag_active() {
                                 return;
                             }
@@ -196,7 +174,12 @@ impl Component for Panel {
                                         PressEventType::Triple => SelectionType::Lines,
                                         _ => SelectionType::Simple,
                                     };
-                                handle.mouse_down(row, col, to_button(event.button), selection_type);
+                                handle.mouse_down(
+                                    row,
+                                    col,
+                                    to_button(event.button),
+                                    selection_type,
+                                );
                             }
                         }
                     })
@@ -207,7 +190,9 @@ impl Component for Panel {
                                 return;
                             }
                             let global = event.global_location();
-                            if !terminal_area.read().to_f64().contains(global) && !*is_pressed.read() {
+                            if !terminal_area.read().to_f64().contains(global)
+                                && !*is_pressed.read()
+                            {
                                 return;
                             }
                             if let Some((row, col)) = to_cell(global) {
