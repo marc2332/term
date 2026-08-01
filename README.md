@@ -10,6 +10,9 @@
 
 ---
 
+> [!NOTE]
+> marcterm is designed around my own usage and hardware, so it might behave in unexpected ways on other setups.
+
 ![marcterm screenshot](screenshot.png)
 
 ---
