@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use freya::icons::lucide;
 use freya::prelude::*;
 use freya::radio::*;
 
@@ -228,7 +229,7 @@ impl Component for AddProjectModal {
     fn render(&self) -> impl IntoElement {
         let radio = use_radio(AppChannel::Tabs);
         let station = use_radio_station::<AppState, AppChannel>();
-        let path = use_state(String::new);
+        let mut path = use_state(String::new);
         let mut error = use_state(|| None::<String>);
 
         let submit = move |value: String| {
@@ -243,6 +244,14 @@ impl Component for AddProjectModal {
                         open_project(station, info);
                     }
                     Err(e) => error.set(Some(e)),
+                }
+            });
+        };
+
+        let pick_folder = move |_| {
+            spawn(async move {
+                if let Some(folder) = rfd::AsyncFileDialog::new().pick_folder().await {
+                    path.set(folder.path().display().to_string());
                 }
             });
         };
@@ -264,13 +273,33 @@ impl Component for AddProjectModal {
                                     .color((150, 150, 150)),
                             )
                             .child(
-                                Input::new(path)
-                                    .flat()
-                                    .layout_variant(InputLayoutVariant::Expanded)
+                                rect()
                                     .width(Size::fill())
-                                    .placeholder("~/Projects/myproject")
-                                    .auto_focus(true)
-                                    .on_submit(submit),
+                                    .horizontal()
+                                    .content(Content::flex())
+                                    .cross_align(Alignment::Center)
+                                    .spacing(8.)
+                                    .child(
+                                        Input::new(path)
+                                            .flat()
+                                            .layout_variant(InputLayoutVariant::Expanded)
+                                            .width(Size::flex(1.))
+                                            .placeholder("~/Projects/myproject")
+                                            .auto_focus(true)
+                                            .on_submit(submit),
+                                    )
+                                    .child(
+                                        Button::new()
+                                            .flat()
+                                            .rounded_full()
+                                            .on_press(pick_folder)
+                                            .child(
+                                                SvgViewer::new(lucide::folder_open())
+                                                    .width(Size::px(15.))
+                                                    .height(Size::px(15.))
+                                                    .stroke((200, 200, 200)),
+                                            ),
+                                    ),
                             ),
                     )
                     .maybe_child(error.read().as_deref().map(error_label)),
