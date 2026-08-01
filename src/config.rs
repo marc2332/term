@@ -100,6 +100,18 @@ impl Config {
             .join("marcterm.toml")
     }
 
+    /// Path to the config file, creating it empty if it does not exist yet.
+    pub fn ensure_path() -> std::io::Result<std::path::PathBuf> {
+        let path = Self::path();
+        if !path.exists() {
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            std::fs::write(&path, "")?;
+        }
+        Ok(path)
+    }
+
     /// Load config from [`Config::path`], falling back to defaults on any error.
     pub fn load() -> Self {
         let path = Self::path();

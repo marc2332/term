@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use freya::prelude::*;
 use freya::radio::*;
 
+use crate::config::Config;
 use crate::git;
 use crate::state::{AppChannel, AppState, Modal, ProjectId, open_project};
 
@@ -76,6 +77,7 @@ struct AboutModal;
 impl Component for AboutModal {
     fn render(&self) -> impl IntoElement {
         let radio = use_radio(AppChannel::Tabs);
+        let mut copied = use_state(|| false);
         Popup::new()
             .width(Size::px(300.))
             .on_close_request(move |_| close_modal(radio))
@@ -105,6 +107,25 @@ impl Component for AboutModal {
                                 .spacing(16.)
                                 .child(link("Website", "https://term.mespin.me"))
                                 .child(link("Source code", "https://github.com/marc2332/term")),
+                        )
+                        .child(
+                            Button::new()
+                                .rounded_full()
+                                .on_press(move |_| {
+                                    if let Ok(path) = Config::ensure_path() {
+                                        let _ = Clipboard::set(path.display().to_string());
+                                        copied.set(true);
+                                    }
+                                })
+                                .child(
+                                    label()
+                                        .text(if *copied.read() {
+                                            "Copied!"
+                                        } else {
+                                            "Copy config path"
+                                        })
+                                        .font_size(13.),
+                                ),
                         ),
                 ),
             )
