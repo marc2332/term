@@ -740,6 +740,24 @@ struct WorktreeRow {
     compact: bool,
 }
 
+/// Branch name with the leading segment in bold, like "feat" in "feat/lalala".
+fn worktree_name_label(worktree: &Worktree) -> Element {
+    let name = &worktree.name;
+    let prefix = worktree.branch_prefix();
+    let at = if prefix.len() < name.len() {
+        prefix.len()
+    } else {
+        0
+    };
+    paragraph()
+        .width(Size::flex(1.))
+        .max_lines(1)
+        .text_overflow(TextOverflow::Ellipsis)
+        .span(Span::new(name[..at].to_string()).font_weight(FontWeight::BOLD))
+        .span(name[at..].to_string())
+        .into_element()
+}
+
 /// Compact elapsed time: "now", then "5m", "1h", "3d", "2w".
 fn format_age(elapsed: Duration) -> String {
     let seconds = elapsed.as_secs();
@@ -854,13 +872,7 @@ impl Component for WorktreeRow {
                         .content(Content::flex())
                         .cross_align(Alignment::Center)
                         .spacing(6.)
-                        .child(
-                            label()
-                                .text(self.worktree.name.clone())
-                                .width(Size::flex(1.))
-                                .max_lines(1)
-                                .text_overflow(TextOverflow::Ellipsis),
-                        )
+                        .child(worktree_name_label(&self.worktree))
                         .map(self.age.clone(), |el, age| {
                             el.child(label().text(age).font_size(11.).color((130, 130, 130)))
                         }),

@@ -66,6 +66,26 @@ pub struct Project {
     pub show_archived: bool,
 }
 
+/// Sidebar sort rank for a branch name prefix.
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+enum BranchKind {
+    Fix,
+    Feat,
+    Chore,
+    Other,
+}
+
+impl BranchKind {
+    fn of(worktree: &Worktree) -> Self {
+        match worktree.branch_prefix() {
+            "fix" | "bugfix" | "hotfix" => BranchKind::Fix,
+            "feat" | "feature" => BranchKind::Feat,
+            "chore" => BranchKind::Chore,
+            _ => BranchKind::Other,
+        }
+    }
+}
+
 /// Main worktree first, then the custom order, then alphabetical.
 pub fn sorted_worktrees(worktrees: &[Worktree], order: &[String]) -> Vec<Worktree> {
     let mut worktrees = worktrees.to_vec();
@@ -576,7 +596,7 @@ impl AppState {
     }
 
     /// Sort worktrees: open with changes, then open, then the rest.
-    /// Within each group, the most recent terminal output goes first.
+    /// Within each group, fix before feat before chore, then most recent output first.
     pub fn sort_worktrees(&mut self, id: ProjectId) {
         let Some(project) = self.project(id) else {
             return;
@@ -592,6 +612,7 @@ impl AppState {
             (
                 tab.is_none(),
                 clean,
+                BranchKind::of(wt),
                 std::cmp::Reverse(tab.map(|t| t.last_output)),
             )
         });

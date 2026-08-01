@@ -51,7 +51,7 @@ fn main() {
     let cli = Cli::parse();
     let config = Config::load();
 
-    let mut launch_config = LaunchConfig::new().with_fallback_font("Inter").with_window(
+    let mut launch_config = LaunchConfig::new().with_window(
         WindowConfig::new(move || App {
             font_size: config.font_size,
             font_family: config.font_family.clone(),

@@ -24,6 +24,11 @@ pub struct Worktree {
 }
 
 impl Worktree {
+    /// Leading branch name segment, like "feat" in "feat/lalala".
+    pub fn branch_prefix(&self) -> &str {
+        &self.name[..self.name.find(['/', '-', '_']).unwrap_or(self.name.len())]
+    }
+
     /// A worktree known only by its path, not yet listed by git.
     pub fn placeholder(path: PathBuf) -> Self {
         Self {
