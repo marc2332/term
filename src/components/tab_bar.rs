@@ -488,6 +488,15 @@ fn open_project_menu(mut radio: AppRadio, station: AppStation, id: ProjectId) {
             },
         ))
         .child(menu_item(
+            SvgViewer::new(lucide::moon()),
+            "Sleep old worktrees",
+            move || {
+                radio
+                    .write_channel(AppChannel::Tabs)
+                    .sleep_old_worktrees(id);
+            },
+        ))
+        .child(menu_item(
             SvgViewer::new(lucide::archive()),
             "Archive all worktrees",
             move || {

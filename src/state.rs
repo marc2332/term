@@ -711,11 +711,18 @@ impl AppState {
         }
     }
 
+    /// Close the project's worktree tabs with no output for over an hour.
+    pub fn sleep_old_worktrees(&mut self, id: ProjectId) {
+        self.retain_tabs(|tab| {
+            tab.project != Some(id)
+                || tab.worktree.is_none()
+                || tab.last_output.elapsed() <= Duration::from_secs(3600)
+        });
+    }
+
     /// Close every tab open on the given worktree.
     pub fn close_tabs_in_worktree(&mut self, path: &Path) {
-        let active_id = self.active_tab().map(|t| t.id);
-        self.tabs.retain(|t| t.worktree.as_deref() != Some(path));
-        self.restore_active(active_id);
+        self.retain_tabs(|t| t.worktree.as_deref() != Some(path));
     }
 
     /// The project's visible sidebar rows, in display order. Archived rows go
@@ -792,9 +799,14 @@ impl AppState {
 
     /// Close a project and all of its tabs. Never touches the disk.
     pub fn remove_project(&mut self, id: ProjectId) {
-        let active_id = self.active_tab().map(|t| t.id);
-        self.tabs.retain(|t| t.project != Some(id));
+        self.retain_tabs(|t| t.project != Some(id));
         self.projects.retain(|p| p.id != id);
+    }
+
+    /// Drop every tab failing `keep`, preserving the active tab when it survives.
+    fn retain_tabs(&mut self, keep: impl FnMut(&Tab) -> bool) {
+        let active_id = self.active_tab().map(|t| t.id);
+        self.tabs.retain(keep);
         self.restore_active(active_id);
     }
 
