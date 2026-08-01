@@ -3,7 +3,9 @@ use freya::material_design::ButtonRippleExt;
 use freya::prelude::*;
 use freya::radio::*;
 
+use async_io::Timer;
 use std::collections::HashMap;
+use std::time::Duration;
 
 use crate::components::titlebar::Titlebar;
 use crate::git::Worktree;
@@ -122,8 +124,20 @@ impl Component for TabBar {
     fn render(&self) -> impl IntoElement {
         let radio = use_radio(AppChannel::Tabs);
         let station = use_radio_station::<AppState, AppChannel>();
+        let mut tick = use_state(|| 0u32);
+
+        // Re-render every minute so age labels roll over without state changes.
+        use_hook(move || {
+            spawn(async move {
+                loop {
+                    Timer::after(Duration::from_secs(60)).await;
+                    *tick.write() += 1;
+                }
+            });
+        });
 
         let (items, sidebar_collapsed) = {
+            let _ = *tick.read();
             let state = radio.read();
             let index_of: HashMap<TabId, usize> = state
                 .display_order()
@@ -191,6 +205,7 @@ impl Component for TabBar {
                         tab_title: open_tab
                             .map(|t| t.title.clone())
                             .filter(|title| !title.is_empty()),
+                        age: open_tab.map(|t| format_age(t.last_output.elapsed())),
                         compact: state.sidebar_collapsed,
                     }));
                 }
@@ -720,7 +735,25 @@ struct WorktreeRow {
     worktree: Worktree,
     tab: Option<OpenTab>,
     tab_title: Option<String>,
+    /// Time since the tab's last terminal output, like "1h".
+    age: Option<String>,
     compact: bool,
+}
+
+/// Compact elapsed time: "now", then "5m", "1h", "3d", "2w".
+fn format_age(elapsed: Duration) -> String {
+    let seconds = elapsed.as_secs();
+    if seconds < 60 {
+        "now".to_string()
+    } else if seconds < 3600 {
+        format!("{}m", seconds / 60)
+    } else if seconds < 86400 {
+        format!("{}h", seconds / 3600)
+    } else if seconds < 604800 {
+        format!("{}d", seconds / 86400)
+    } else {
+        format!("{}w", seconds / 604800)
+    }
 }
 
 impl Component for WorktreeRow {
@@ -815,11 +848,22 @@ impl Component for WorktreeRow {
                 .vertical()
                 .main_align(Alignment::Center)
                 .child(
-                    label()
-                        .text(self.worktree.name.clone())
+                    rect()
                         .width(Size::fill())
-                        .max_lines(1)
-                        .text_overflow(TextOverflow::Ellipsis),
+                        .horizontal()
+                        .content(Content::flex())
+                        .cross_align(Alignment::Center)
+                        .spacing(6.)
+                        .child(
+                            label()
+                                .text(self.worktree.name.clone())
+                                .width(Size::flex(1.))
+                                .max_lines(1)
+                                .text_overflow(TextOverflow::Ellipsis),
+                        )
+                        .map(self.age.clone(), |el, age| {
+                            el.child(label().text(age).font_size(11.).color((130, 130, 130)))
+                        }),
                 )
                 .map(self.tab_title.clone(), |el, title| {
                     el.child(
