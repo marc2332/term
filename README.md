@@ -36,6 +36,7 @@ cargo install --git https://github.com/marc2332/term
 ## ✨ Features
 
 - 🗂️ **Tabs** — open and manage multiple terminal sessions
+- 🌿 **Git worktrees** — every worktree is listed under its project with live diff stats, mostly designed around how [marcgit](https://github.com/marc2332/git) works
 - ➗ **Panel splitting** — split any panel horizontally or vertically
 - ↔️ **Resizable panes** — drag to resize split panels
 - 📌 **Collapsible sidebar** — toggle between full and compact icon-only sidebar
