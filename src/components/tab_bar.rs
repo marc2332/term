@@ -1,3 +1,4 @@
+use freya::animation::*;
 use freya::icons::lucide;
 use freya::material_design::ButtonRippleExt;
 use freya::prelude::*;
@@ -70,18 +71,9 @@ fn sidebar_item_element(mut radio: AppRadio, item: &SidebarItem) -> Element {
             let name = header.name.clone();
             let zone = DragZone::new(DragPayload::Project(group_id), header.clone())
                 .show_while_dragging(false)
-                .drag_element(drag_preview(
-                    rect()
-                        .horizontal()
-                        .spacing(6.)
-                        .cross_align(Alignment::Center)
-                        .child(
-                            SvgViewer::new(lucide::folder_git_2())
-                                .width(Size::px(14.))
-                                .height(Size::px(14.))
-                                .stroke((230, 230, 230)),
-                        )
-                        .child(label().text(name).font_size(14.).color((230, 230, 230))),
+                .drag_element(drag_chip(
+                    Some(SvgViewer::new(lucide::folder_git_2())),
+                    name,
                 ));
             DropZone::new(zone, move |payload: DragPayload| match payload {
                 DragPayload::Tab(dragged_id) => {
@@ -193,6 +185,7 @@ impl Component for TabBar {
                         .and_then(|id| state.tabs.iter().find(|t| t.id == id));
                     items.push(SidebarItem::Worktree(WorktreeRow {
                         project_id: project.id,
+                        index: i,
                         is_main: entry.worktree.is_main,
                         archived: entry.archived,
                         worktree: entry.worktree,
@@ -342,8 +335,8 @@ fn bottom_actions(mut radio: AppRadio, station: AppStation, compact: bool) -> El
 
 pub(crate) fn drag_preview(content: impl IntoElement) -> Rect {
     rect()
-        .width(Size::px(200.))
-        .background((45, 45, 45))
+        .width(Size::px(260.))
+        .background((62, 60, 66))
         .corner_radius(6.)
         .padding(8.)
         .layer(Layer::Overlay)
@@ -358,19 +351,50 @@ pub(crate) fn drag_preview(content: impl IntoElement) -> Rect {
         .child(content)
 }
 
+fn drag_chip(icon: Option<SvgViewer>, text: String) -> Rect {
+    let mut row = rect()
+        .horizontal()
+        .spacing(6.)
+        .cross_align(Alignment::Center);
+    if let Some(icon) = icon {
+        row = row.child(
+            icon.width(Size::px(14.))
+                .height(Size::px(14.))
+                .stroke((230, 230, 230)),
+        );
+    }
+    drag_preview(
+        row.child(
+            label()
+                .text(text)
+                .font_size(14.)
+                .color((230, 230, 230))
+                .max_lines(1)
+                .text_overflow(TextOverflow::Ellipsis),
+        ),
+    )
+}
+
+fn animated_portal<T>(id: T) -> Portal<T> {
+    Portal::new(id)
+        .function(Function::Expo)
+        .ease(Ease::Out)
+        .duration(Duration::from_millis(200))
+}
+
 fn draggable_tab(mut radio: AppRadio, tab: TabButton) -> Element {
     let drop_tab_id = tab.tab_id;
+    let index = tab.index;
     let drag_title = tab.title.clone();
     let tooltip = tab.title.clone();
     let zone = DropZone::new(
         DragZone::new(DragPayload::Tab(tab.tab_id), tab)
             .show_while_dragging(false)
-            .drag_element(drag_preview(
-                label()
-                    .text(drag_title)
-                    .font_size(14.)
-                    .color((230, 230, 230)),
-            )),
+            .drag_element(
+                animated_portal(drop_tab_id)
+                    .animation_dependency(index)
+                    .child(drag_chip(None, drag_title)),
+            ),
         move |payload: DragPayload| {
             if let DragPayload::Tab(dragged_id) = payload {
                 radio
@@ -379,20 +403,22 @@ fn draggable_tab(mut radio: AppRadio, tab: TabButton) -> Element {
             }
         },
     );
-    rect()
+    animated_portal(drop_tab_id)
+        .key(&("tab", drop_tab_id.0))
         .width(Size::fill())
+        .animation_dependency(index)
         .child(
             TooltipContainer::new(Tooltip::new_text(tooltip))
                 .position(AttachedPosition::Right)
                 .child(zone),
         )
-        .key(&("tab", drop_tab_id.0))
         .into_element()
 }
 
 /// Worktree rows drag to reorder within their own project.
 fn draggable_worktree_row(mut radio: AppRadio, row: WorktreeRow) -> Element {
     let project_id = row.project_id;
+    let index = row.index;
     let name = row.worktree.name.clone();
     let target_name = name.clone();
     let row_key = name.clone();
@@ -404,24 +430,14 @@ fn draggable_worktree_row(mut radio: AppRadio, row: WorktreeRow) -> Element {
         let drag_title = name.clone();
         DragZone::new(DragPayload::Worktree(project_id, name), row)
             .show_while_dragging(false)
-            .drag_element(drag_preview(
-                rect()
-                    .horizontal()
-                    .spacing(6.)
-                    .cross_align(Alignment::Center)
-                    .child(
-                        SvgViewer::new(lucide::git_branch())
-                            .width(Size::px(14.))
-                            .height(Size::px(14.))
-                            .stroke((230, 230, 230)),
-                    )
-                    .child(
-                        label()
-                            .text(drag_title)
-                            .font_size(14.)
-                            .color((230, 230, 230)),
-                    ),
-            ))
+            .drag_element(
+                animated_portal((project_id, drag_title.clone()))
+                    .animation_dependency(index)
+                    .child(drag_chip(
+                        Some(SvgViewer::new(lucide::git_branch())),
+                        drag_title,
+                    )),
+            )
             .into_element()
     };
 
@@ -436,14 +452,15 @@ fn draggable_worktree_row(mut radio: AppRadio, row: WorktreeRow) -> Element {
             );
         }
     });
-    rect()
+    animated_portal((project_id, row_key.clone()))
+        .key(&("worktree", project_id.0, row_key))
         .width(Size::fill())
+        .animation_dependency(index)
         .child(
             TooltipContainer::new(Tooltip::new_text(tooltip))
                 .position(AttachedPosition::Right)
                 .child(zone),
         )
-        .key(&("worktree", project_id.0, row_key))
         .into_element()
 }
 
@@ -739,6 +756,7 @@ struct OpenTab {
 #[derive(PartialEq, Clone)]
 struct WorktreeRow {
     project_id: ProjectId,
+    index: usize,
     is_main: bool,
     archived: bool,
     worktree: Worktree,
@@ -1145,10 +1163,7 @@ fn loading_indicator(color: Color) -> Element {
 fn rename_input(
     rename_value: State<String>,
     input_a11y_id: AccessibilityId,
-    tab_id: TabId,
-    mut radio: AppRadio,
-    mut editing: State<bool>,
-    mut was_focused: State<bool>,
+    mut cancelled: State<bool>,
 ) -> Element {
     Input::new(rename_value)
         .flat()
@@ -1161,12 +1176,21 @@ fn rename_input(
         .border_fill(Color::TRANSPARENT)
         .focus_border_fill(Color::TRANSPARENT)
         .inner_margin(Gaps::new(0., 0., 0., 0.))
-        .on_submit(move |value: String| {
-            radio
-                .write_channel(AppChannel::Tabs)
-                .rename_tab(tab_id, value);
-            editing.set(false);
-            was_focused.set(false);
+        .on_pre_key_down(move |e: Event<KeyboardEventData>| match &e.key {
+            Key::Named(NamedKey::Enter) => {
+                input_a11y_id.request_unfocus();
+                false
+            }
+            Key::Named(NamedKey::Escape) => {
+                cancelled.set(true);
+                true
+            }
+            Key::Named(NamedKey::Tab) => false,
+            _ => {
+                e.stop_propagation();
+                e.prevent_default();
+                true
+            }
         })
         .into_element()
 }
@@ -1213,32 +1237,35 @@ impl Component for TabButton {
             (140, 140, 140).into()
         };
 
-        // Track input focus to cancel editing on blur
         let input_a11y_id = use_a11y();
         let input_focus = use_focus(input_a11y_id);
         let mut was_focused = use_state(|| false);
+        let mut cancelled = use_state(|| false);
 
-        if *editing.read() {
+        // Blur commits the rename unless Escape cancelled it.
+        use_side_effect(move || {
+            if !*editing.read() {
+                return;
+            }
             if input_focus().is_focused() {
                 was_focused.set(true);
             } else if *was_focused.read() {
+                if !*cancelled.read() {
+                    radio
+                        .write_channel(AppChannel::Tabs)
+                        .rename_tab(tab_id, rename_value.peek().clone());
+                }
                 editing.set(false);
                 was_focused.set(false);
+                cancelled.set(false);
             }
-        }
+        });
 
         let is_editing = *editing.read();
         let show_close = *hovered.read() || !outputting;
 
         let title_element = if is_editing {
-            rename_input(
-                rename_value,
-                input_a11y_id,
-                tab_id,
-                radio,
-                editing,
-                was_focused,
-            )
+            rename_input(rename_value, input_a11y_id, cancelled)
         } else {
             tab_title(self.title.clone())
         };
@@ -1268,6 +1295,7 @@ impl Component for TabButton {
                                 "Rename",
                                 move || {
                                     was_focused.set(false);
+                                    cancelled.set(false);
                                     rename_value.set(custom_title.clone());
                                     editing.set(true);
                                 },
