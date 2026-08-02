@@ -838,9 +838,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.6.4"
+version = "4.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d91e0c145792ef73a6ad36d27c75ac09f1832222a3c209689d90f534685ee5b7"
+checksum = "301b56658598e48f3648647ac6fc887be7e7108eddfa4e9b63fcf3ec58c0cadf"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -848,9 +848,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.6.2"
+version = "4.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f09628afdcc538b57f3c6341e9c8e9970f18e4a481690a64974d7023bd33548b"
+checksum = "94a65403d1a1bd28f7dc68eb8506e8874808ee5eecb59298de588e2e1407a078"
 dependencies = [
  "anstream",
  "anstyle",
@@ -1410,8 +1410,8 @@ dependencies = [
 
 [[package]]
 name = "freya"
-version = "0.4.0"
-source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#6b2f72c6c6eb59f2c8f13953cb2b3cf22a30b214"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#ce6957ba28f88be6ee3891178386043a325892d3"
 dependencies = [
  "cfg-if",
  "freya-android",
@@ -1434,8 +1434,8 @@ dependencies = [
 
 [[package]]
 name = "freya-android"
-version = "0.4.0"
-source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#6b2f72c6c6eb59f2c8f13953cb2b3cf22a30b214"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#ce6957ba28f88be6ee3891178386043a325892d3"
 dependencies = [
  "freya-components",
  "freya-core",
@@ -1447,8 +1447,8 @@ dependencies = [
 
 [[package]]
 name = "freya-animation"
-version = "0.4.0"
-source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#6b2f72c6c6eb59f2c8f13953cb2b3cf22a30b214"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#ce6957ba28f88be6ee3891178386043a325892d3"
 dependencies = [
  "async-io",
  "easer",
@@ -1457,8 +1457,8 @@ dependencies = [
 
 [[package]]
 name = "freya-clipboard"
-version = "0.4.1"
-source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#6b2f72c6c6eb59f2c8f13953cb2b3cf22a30b214"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#ce6957ba28f88be6ee3891178386043a325892d3"
 dependencies = [
  "copypasta",
  "freya-core",
@@ -1466,8 +1466,8 @@ dependencies = [
 
 [[package]]
 name = "freya-components"
-version = "0.4.0"
-source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#6b2f72c6c6eb59f2c8f13953cb2b3cf22a30b214"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#ce6957ba28f88be6ee3891178386043a325892d3"
 dependencies = [
  "accesskit",
  "anyhow",
@@ -1492,8 +1492,8 @@ dependencies = [
 
 [[package]]
 name = "freya-core"
-version = "0.4.0"
-source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#6b2f72c6c6eb59f2c8f13953cb2b3cf22a30b214"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#ce6957ba28f88be6ee3891178386043a325892d3"
 dependencies = [
  "accesskit",
  "async-watch",
@@ -1521,8 +1521,8 @@ dependencies = [
 
 [[package]]
 name = "freya-edit"
-version = "0.4.0"
-source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#6b2f72c6c6eb59f2c8f13953cb2b3cf22a30b214"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#ce6957ba28f88be6ee3891178386043a325892d3"
 dependencies = [
  "bitflags 2.13.1",
  "freya-clipboard",
@@ -1535,24 +1535,24 @@ dependencies = [
 
 [[package]]
 name = "freya-engine"
-version = "0.4.0"
-source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#6b2f72c6c6eb59f2c8f13953cb2b3cf22a30b214"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#ce6957ba28f88be6ee3891178386043a325892d3"
 dependencies = [
  "freya-skia-safe",
 ]
 
 [[package]]
 name = "freya-icons"
-version = "0.4.0"
-source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#6b2f72c6c6eb59f2c8f13953cb2b3cf22a30b214"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#ce6957ba28f88be6ee3891178386043a325892d3"
 dependencies = [
  "bytes",
 ]
 
 [[package]]
 name = "freya-markdown"
-version = "0.4.0"
-source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#6b2f72c6c6eb59f2c8f13953cb2b3cf22a30b214"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#ce6957ba28f88be6ee3891178386043a325892d3"
 dependencies = [
  "freya-components",
  "freya-core",
@@ -1562,8 +1562,8 @@ dependencies = [
 
 [[package]]
 name = "freya-material-design"
-version = "0.4.0"
-source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#6b2f72c6c6eb59f2c8f13953cb2b3cf22a30b214"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#ce6957ba28f88be6ee3891178386043a325892d3"
 dependencies = [
  "freya-animation",
  "freya-components",
@@ -1574,8 +1574,8 @@ dependencies = [
 
 [[package]]
 name = "freya-performance-plugin"
-version = "0.4.0"
-source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#6b2f72c6c6eb59f2c8f13953cb2b3cf22a30b214"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#ce6957ba28f88be6ee3891178386043a325892d3"
 dependencies = [
  "freya-core",
  "freya-engine",
@@ -1584,16 +1584,16 @@ dependencies = [
 
 [[package]]
 name = "freya-radio"
-version = "0.4.0"
-source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#6b2f72c6c6eb59f2c8f13953cb2b3cf22a30b214"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#ce6957ba28f88be6ee3891178386043a325892d3"
 dependencies = [
  "freya-core",
 ]
 
 [[package]]
 name = "freya-router"
-version = "0.4.0"
-source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#6b2f72c6c6eb59f2c8f13953cb2b3cf22a30b214"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#ce6957ba28f88be6ee3891178386043a325892d3"
 dependencies = [
  "freya-core",
  "freya-router-macro",
@@ -1604,8 +1604,8 @@ dependencies = [
 
 [[package]]
 name = "freya-router-macro"
-version = "0.4.0"
-source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#6b2f72c6c6eb59f2c8f13953cb2b3cf22a30b214"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#ce6957ba28f88be6ee3891178386043a325892d3"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1615,12 +1615,11 @@ dependencies = [
 
 [[package]]
 name = "freya-sdk"
-version = "0.4.0"
-source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#6b2f72c6c6eb59f2c8f13953cb2b3cf22a30b214"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#ce6957ba28f88be6ee3891178386043a325892d3"
 dependencies = [
  "async-io",
  "freya-core",
- "tokio",
 ]
 
 [[package]]
@@ -1666,8 +1665,8 @@ dependencies = [
 
 [[package]]
 name = "freya-terminal"
-version = "0.4.0"
-source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#6b2f72c6c6eb59f2c8f13953cb2b3cf22a30b214"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#ce6957ba28f88be6ee3891178386043a325892d3"
 dependencies = [
  "alacritty_terminal",
  "blocking",
@@ -1685,8 +1684,8 @@ dependencies = [
 
 [[package]]
 name = "freya-winit"
-version = "0.4.0"
-source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#6b2f72c6c6eb59f2c8f13953cb2b3cf22a30b214"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#ce6957ba28f88be6ee3891178386043a325892d3"
 dependencies = [
  "accesskit",
  "accesskit_winit",
@@ -1825,9 +1824,9 @@ dependencies = [
 
 [[package]]
 name = "generational-box"
-version = "0.7.9"
+version = "0.7.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8cd0d825b8d339701ad330dbcd6399519ced4d143484954daf6e3185dace4f77"
+checksum = "b8b2dc9b873cd1a8adb80aa5dcef9a8205f781a8a313d5ffb867248cb3bcb764"
 dependencies = [
  "parking_lot",
  "tracing",
@@ -2410,9 +2409,9 @@ checksum = "b6d2cec3eae94f9f509c767b45932f1ada8350c4bdb85af2fcab4a3c14807981"
 
 [[package]]
 name = "libredox"
-version = "0.1.18"
+version = "0.1.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c943259e342f1e06ff2da7a83eabdfe7f92ce10262688dbf1895ff0b3e6e4652"
+checksum = "2026a5056764a10b2bf5d56488cba40da507f5493a6a429340e2004d9ed085fa"
 dependencies = [
  "bitflags 2.13.1",
  "libc",
@@ -3243,8 +3242,8 @@ checksum = "35fb2e5f958ec131621fdd531e9fc186ed768cbe395337403ae56c17a74c68ec"
 
 [[package]]
 name = "pathgraph"
-version = "0.4.0"
-source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#6b2f72c6c6eb59f2c8f13953cb2b3cf22a30b214"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#ce6957ba28f88be6ee3891178386043a325892d3"
 
 [[package]]
 name = "percent-encoding"
@@ -3558,8 +3557,8 @@ checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 
 [[package]]
 name = "ragnarok"
-version = "0.4.0"
-source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#6b2f72c6c6eb59f2c8f13953cb2b3cf22a30b214"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#ce6957ba28f88be6ee3891178386043a325892d3"
 dependencies = [
  "euclid",
  "hotpath",
@@ -3973,9 +3972,9 @@ dependencies = [
 
 [[package]]
 name = "serial2"
-version = "0.2.37"
+version = "0.2.38"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9eb6ea5562eeaed6936b8b54e086aa0f88b9e5b1bef45beb038e2519fa1185b1"
+checksum = "b16809bc35793b19ce4e0c53924bc0dce3937f15487997cfdaed936004180730"
 dependencies = [
  "cfg-if",
  "libc",
@@ -4373,15 +4372,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tokio"
-version = "1.53.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "202caea871b69668250d242070849eb495be178ed697a3e98aebce5bc81a0bed"
-dependencies = [
- "pin-project-lite",
-]
-
-[[package]]
 name = "toml"
 version = "0.9.12+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4458,8 +4448,8 @@ checksum = "7d56353a2a665ad0f41a421187180aab746c8c325620617ad883a99a1cbe66d2"
 
 [[package]]
 name = "torin"
-version = "0.4.0"
-source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#6b2f72c6c6eb59f2c8f13953cb2b3cf22a30b214"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/marc2332/freya?branch=feat%2Fbetter-portal#ce6957ba28f88be6ee3891178386043a325892d3"
 dependencies = [
  "euclid",
  "itertools 0.14.0",
@@ -5227,9 +5217,9 @@ dependencies = [
 
 [[package]]
 name = "xcursor"
-version = "0.3.10"
+version = "0.3.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bec9e4a500ca8864c5b47b8b482a73d62e4237670e5b5f1d6b9e3cae50f28f2b"
+checksum = "163b33ed8786455e2fa5d72f554057ce3f3182425434f756cd39c99839d88e23"
 
 [[package]]
 name = "xkbcommon-dl"
