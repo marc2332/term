@@ -233,7 +233,11 @@ impl Component for TabBar {
         rect()
             .expanded()
             .overflow(Overflow::Clip)
-            .padding(4.)
+            .padding(if sidebar_collapsed {
+                Gaps::new(4., 4., 4., 4.)
+            } else {
+                Gaps::new(4., 0., 4., 4.)
+            })
             .spacing(4.)
             .direction(Direction::Vertical)
             .content(Content::flex())
