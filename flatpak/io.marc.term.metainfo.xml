@@ -27,6 +27,9 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="0.4.2" date="2026-08-05">
+      <description><p>Collapsible worktree and tab groups in the sidebar, panel styling refresh, context menus on press.</p></description>
+    </release>
     <release version="0.4.1" date="2026-07-28">
       <description><p>Confirmation dialogs, archived worktree filtering and ordering, context menu icons and hover actions in project headers.</p></description>
     </release>
