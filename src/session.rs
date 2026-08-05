@@ -4,7 +4,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 
 use crate::git;
-use crate::state::{AppState, PanelNode, Tab};
+use crate::state::{AppState, PanelNode, Tab, WorktreeGroup};
 
 const MAX_SESSIONS: usize = 7;
 const MAX_RECENT_PROJECTS: usize = 7;
@@ -21,6 +21,8 @@ pub struct SessionTab {
     #[serde(default)]
     pub worktree: Option<PathBuf>,
     pub custom_title: Option<String>,
+    #[serde(default)]
+    pub group: Option<String>,
     pub layout: PanelLayout,
     pub active_leaf: usize,
 }
@@ -179,6 +181,8 @@ struct ProjectPrefs {
     archived: Vec<String>,
     #[serde(default)]
     order: Vec<String>,
+    #[serde(default)]
+    groups: Vec<WorktreeGroup>,
 }
 
 fn update_prefs(root: &Path, f: impl FnOnce(&mut ProjectPrefs)) {
@@ -192,7 +196,7 @@ fn update_prefs(root: &Path, f: impl FnOnce(&mut ProjectPrefs)) {
             ..Default::default()
         });
     f(&mut entry);
-    if !entry.archived.is_empty() || !entry.order.is_empty() {
+    if !entry.archived.is_empty() || !entry.order.is_empty() || !entry.groups.is_empty() {
         entries.push(entry);
     }
     save_json("archived.json", &entries);
@@ -206,10 +210,10 @@ fn load_prefs(root: &Path) -> ProjectPrefs {
         .unwrap_or_default()
 }
 
-/// A project's (archived worktree names, custom worktree order).
-pub fn load_project_prefs(root: &Path) -> (Vec<String>, Vec<String>) {
+/// A project's (archived worktree names, custom worktree order, groups).
+pub fn load_project_prefs(root: &Path) -> (Vec<String>, Vec<String>, Vec<WorktreeGroup>) {
     let prefs = load_prefs(root);
-    (prefs.archived, prefs.order)
+    (prefs.archived, prefs.order, prefs.groups)
 }
 
 pub fn save_archived(root: &Path, worktrees: &[String]) {
@@ -218,6 +222,10 @@ pub fn save_archived(root: &Path, worktrees: &[String]) {
 
 pub fn save_worktree_order(root: &Path, order: &[String]) {
     update_prefs(root, |prefs| prefs.order = order.to_vec());
+}
+
+pub fn save_worktree_groups(root: &Path, groups: &[WorktreeGroup]) {
+    update_prefs(root, |prefs| prefs.groups = groups.to_vec());
 }
 
 fn capture_layout(node: &PanelNode) -> PanelLayout {
@@ -242,6 +250,7 @@ fn capture_tab(tab: &Tab) -> SessionTab {
     SessionTab {
         worktree: tab.worktree.clone(),
         custom_title: tab.custom_title.clone(),
+        group: tab.group.clone(),
         layout: capture_layout(&tab.panels),
         active_leaf,
     }

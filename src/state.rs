@@ -10,6 +10,7 @@ use freya::prelude::{
 use freya::radio::{RadioChannel, RadioStation};
 use freya::terminal::*;
 use futures::FutureExt;
+use serde::{Deserialize, Serialize};
 
 use crate::git::{self, ProjectInfo, Worktree};
 use crate::session::{self, PanelLayout, Session, SessionTab};
@@ -64,6 +65,73 @@ pub struct Project {
     pub collapsed: bool,
     /// Reveal archived worktrees in the sidebar (not persisted).
     pub show_archived: bool,
+    /// Named collapsible worktree groups, persisted per project root.
+    pub groups: Vec<WorktreeGroup>,
+}
+
+impl Project {
+    /// Index of the group containing `worktree`, if any.
+    pub fn group_of(&self, worktree: &str) -> Option<usize> {
+        self.groups
+            .iter()
+            .position(|group| group.worktrees.iter().any(|name| name == worktree))
+    }
+
+    /// Remove `worktree` from every group.
+    fn ungroup_worktree(&mut self, worktree: &str) {
+        for group in &mut self.groups {
+            group.worktrees.retain(|name| name != worktree);
+        }
+    }
+
+    /// Non-main worktree names in sidebar order.
+    fn ordered_worktree_names(&self) -> Vec<String> {
+        self.sorted_worktrees()
+            .into_iter()
+            .filter(|worktree| !worktree.is_main)
+            .map(|worktree| worktree.name)
+            .collect()
+    }
+
+    /// Main worktree first, then the custom order, then alphabetical.
+    pub fn sorted_worktrees(&self) -> Vec<Worktree> {
+        let mut worktrees = self.worktrees.clone();
+        worktrees.sort_by_key(|worktree| {
+            if worktree.is_main {
+                (0, 0, String::new())
+            } else {
+                match self
+                    .worktree_order
+                    .iter()
+                    .position(|name| name == &worktree.name)
+                {
+                    Some(index) => (1, index, String::new()),
+                    None => (2, 0, worktree.name.clone()),
+                }
+            }
+        });
+        worktrees
+    }
+}
+
+/// A named collapsible set of worktrees inside a project's sidebar section.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WorktreeGroup {
+    pub name: String,
+    #[serde(default)]
+    pub collapsed: bool,
+    #[serde(default)]
+    pub worktrees: Vec<String>,
+}
+
+impl WorktreeGroup {
+    pub fn new(name: String, member: String) -> Self {
+        Self {
+            name,
+            collapsed: false,
+            worktrees: vec![member],
+        }
+    }
 }
 
 /// Sidebar sort rank for a branch name prefix.
@@ -84,22 +152,6 @@ impl BranchKind {
             _ => BranchKind::Other,
         }
     }
-}
-
-/// Main worktree first, then the custom order, then alphabetical.
-pub fn sorted_worktrees(worktrees: &[Worktree], order: &[String]) -> Vec<Worktree> {
-    let mut worktrees = worktrees.to_vec();
-    worktrees.sort_by_key(|wt| {
-        if wt.is_main {
-            (0, 0, String::new())
-        } else {
-            match order.iter().position(|n| n == &wt.name) {
-                Some(i) => (1, i, String::new()),
-                None => (2, 0, wt.name.clone()),
-            }
-        }
-    });
-    worktrees
 }
 
 /// A visible sidebar row for one of a project's worktrees.
@@ -132,37 +184,59 @@ pub enum PanelNode {
     Vertical(Box<PanelNode>, Box<PanelNode>),
 }
 
-fn make_handle(shell: &str, cwd: Option<PathBuf>) -> TerminalHandle {
-    let cmd = if git::is_flatpak() {
-        let mut cmd = CommandBuilder::new("flatpak-spawn");
-        cmd.args(["--host", "--watch-bus"]);
-        cmd.arg("--env=TERM=xterm-256color");
-        cmd.arg("--env=COLORTERM=truecolor");
-        cmd.arg("--env=LANG=en_GB.UTF-8");
-        if let Some(ref dir) = cwd {
-            cmd.arg(format!("--directory={}", dir.display()));
-        }
-        cmd.arg(shell);
-        // https://github.com/flatpak/flatpak/issues/3697
-        cmd.set_controlling_tty(false);
-        cmd
-    } else {
-        let mut cmd = CommandBuilder::new(shell);
-        cmd.env("TERM", "xterm-256color");
-        cmd.env("COLORTERM", "truecolor");
-        cmd.env("LANG", "en_GB.UTF-8");
-        if let Some(dir) = cwd {
-            cmd.cwd(dir);
-        }
-        cmd
-    };
-    TerminalHandle::new(TerminalId::new(), cmd, Some(10_000)).expect("failed to spawn PTY")
-}
-
 impl PanelNode {
+    fn make_handle(shell: &str, cwd: Option<PathBuf>) -> TerminalHandle {
+        let cmd = if git::is_flatpak() {
+            let mut cmd = CommandBuilder::new("flatpak-spawn");
+            cmd.args(["--host", "--watch-bus"]);
+            cmd.arg("--env=TERM=xterm-256color");
+            cmd.arg("--env=COLORTERM=truecolor");
+            cmd.arg("--env=LANG=en_GB.UTF-8");
+            if let Some(ref dir) = cwd {
+                cmd.arg(format!("--directory={}", dir.display()));
+            }
+            cmd.arg(shell);
+            // https://github.com/flatpak/flatpak/issues/3697
+            cmd.set_controlling_tty(false);
+            cmd
+        } else {
+            let mut cmd = CommandBuilder::new(shell);
+            cmd.env("TERM", "xterm-256color");
+            cmd.env("COLORTERM", "truecolor");
+            cmd.env("LANG", "en_GB.UTF-8");
+            if let Some(dir) = cwd {
+                cmd.cwd(dir);
+            }
+            cmd
+        };
+        TerminalHandle::new(TerminalId::new(), cmd, Some(10_000)).expect("failed to spawn PTY")
+    }
+
     pub fn new_leaf(shell: &str, cwd: Option<PathBuf>) -> (AccessibilityId, Self) {
         let id = AccessibilityId::new_unique();
-        (id, PanelNode::Leaf(id, make_handle(shell, cwd), None))
+        (id, PanelNode::Leaf(id, Self::make_handle(shell, cwd), None))
+    }
+
+    /// Rebuild a panel tree from a saved layout, validating saved directories.
+    fn from_layout(layout: &PanelLayout, shell: &str, fallback_cwd: Option<&Path>) -> Self {
+        match layout {
+            PanelLayout::Leaf { cwd } => {
+                let cwd = cwd
+                    .as_deref()
+                    .filter(|c| c.is_dir())
+                    .or_else(|| fallback_cwd.filter(|c| c.is_dir()))
+                    .map(Path::to_path_buf);
+                PanelNode::new_leaf(shell, cwd).1
+            }
+            PanelLayout::Horizontal(a, b) => PanelNode::Horizontal(
+                Box::new(Self::from_layout(a, shell, fallback_cwd)),
+                Box::new(Self::from_layout(b, shell, fallback_cwd)),
+            ),
+            PanelLayout::Vertical(a, b) => PanelNode::Vertical(
+                Box::new(Self::from_layout(a, shell, fallback_cwd)),
+                Box::new(Self::from_layout(b, shell, fallback_cwd)),
+            ),
+        }
     }
 
     /// Find the neighbour of `target` in the given direction.
@@ -439,6 +513,8 @@ pub struct Tab {
     pub project: Option<ProjectId>,
     /// The worktree this tab represents, `Some` pins the tab to its project.
     pub worktree: Option<PathBuf>,
+    /// Name of the tab group this tab belongs to within its container.
+    pub group: Option<String>,
 }
 
 impl Tab {
@@ -470,6 +546,7 @@ impl Tab {
             last_output: Instant::now(),
             project,
             worktree,
+            group: None,
         }
     }
 
@@ -478,6 +555,11 @@ impl Tab {
             Some(t) if !t.is_empty() => t,
             _ => &self.title,
         }
+    }
+
+    /// Whether this tab belongs to `group` within `container`.
+    fn in_group(&self, container: Option<ProjectId>, group: &str) -> bool {
+        self.project == container && self.group.as_deref() == Some(group)
     }
 
     /// Make `panel` the active one, reporting the focus change to both programs.
@@ -520,6 +602,8 @@ pub struct AppState {
     pub notice: Option<String>,
     /// Per-project name filter for the archived worktrees list (not persisted).
     pub archived_filters: HashMap<ProjectId, String>,
+    /// Collapsed tab groups per container, `None` is the loose section.
+    pub collapsed_tab_groups: HashSet<(Option<ProjectId>, String)>,
     /// Identifies this run in the sessions ring.
     pub started_at: u64,
 }
@@ -537,6 +621,7 @@ impl AppState {
             modal: None,
             notice: None,
             archived_filters: HashMap::new(),
+            collapsed_tab_groups: HashSet::new(),
             started_at: session::now_secs(),
         }
     }
@@ -557,7 +642,7 @@ impl AppState {
         let id = ProjectId::new();
         let mut main_seed = Worktree::placeholder(info.main.clone());
         main_seed.is_main = true;
-        let (archived, worktree_order) = session::load_project_prefs(&info.root);
+        let (archived, worktree_order, groups) = session::load_project_prefs(&info.root);
         self.projects.push(Project {
             id,
             name: info.name,
@@ -568,6 +653,7 @@ impl AppState {
             worktree_order,
             collapsed: false,
             show_archived: false,
+            groups,
         });
         id
     }
@@ -595,21 +681,22 @@ impl AppState {
         }
     }
 
-    /// Sort worktrees: open with changes, then open, then the rest.
-    /// Within each group, fix before feat before chore, then most recent output first.
+    /// Sort worktrees: groups first, then open with changes, then open, then the rest.
+    /// Within each bucket, fix before feat before chore, then most recent output first.
     pub fn sort_worktrees(&mut self, id: ProjectId) {
         let Some(project) = self.project(id) else {
             return;
         };
-        let mut worktrees: Vec<Worktree> =
-            sorted_worktrees(&project.worktrees, &project.worktree_order)
-                .into_iter()
-                .filter(|wt| !wt.is_main)
-                .collect();
+        let mut worktrees: Vec<Worktree> = project
+            .sorted_worktrees()
+            .into_iter()
+            .filter(|wt| !wt.is_main)
+            .collect();
         worktrees.sort_by_key(|wt| {
             let tab = self.tab_for_worktree(id, &wt.path);
             let clean = wt.diff.is_none_or(|d| d.is_clean());
             (
+                project.group_of(&wt.name).unwrap_or(usize::MAX),
                 tab.is_none(),
                 clean,
                 BranchKind::of(wt),
@@ -647,30 +734,41 @@ impl AppState {
             project
                 .worktrees
                 .iter()
-                .any(|wt| wt.name == name && wt.is_main)
+                .any(|worktree| worktree.name == name && worktree.is_main)
         };
         if dragged == target || is_main(dragged) {
             return;
         }
-        let mut names: Vec<String> = sorted_worktrees(&project.worktrees, &project.worktree_order)
-            .iter()
-            .filter(|wt| !wt.is_main)
-            .map(|wt| wt.name.clone())
-            .collect();
-        let Some(from) = names.iter().position(|n| n == dragged) else {
+        let target_is_main = is_main(target);
+        let target_group = project
+            .group_of(target)
+            .map(|index| project.groups[index].name.clone());
+        project.ungroup_worktree(dragged);
+        if let Some(group_name) = target_group
+            && let Some(group) = project
+                .groups
+                .iter_mut()
+                .find(|group| group.name == group_name)
+        {
+            group.worktrees.push(dragged.to_string());
+        }
+        project.groups.retain(|group| !group.worktrees.is_empty());
+        session::save_worktree_groups(&project.root, &project.groups);
+        let mut names = project.ordered_worktree_names();
+        let Some(from) = names.iter().position(|name| name == dragged) else {
             return;
         };
         names.remove(from);
-        let to = if is_main(target) {
+        let destination = if target_is_main {
             0
         } else {
             names
                 .iter()
-                .position(|n| n == target)
-                .map(|i| i + usize::from(i >= from))
+                .position(|name| name == target)
+                .map(|index| index + usize::from(index >= from))
                 .unwrap_or(names.len())
         };
-        names.insert(to, dragged.to_string());
+        names.insert(destination, dragged.to_string());
         project.worktree_order = names;
         session::save_worktree_order(&project.root, &project.worktree_order);
     }
@@ -681,6 +779,256 @@ impl AppState {
             project.archived = archived;
             session::save_archived(&project.root, &project.archived);
         }
+    }
+
+    /// A group name not yet taken according to `is_taken`.
+    fn unique_group_name(is_taken: impl Fn(&str) -> bool) -> String {
+        let mut name = "Group".to_string();
+        let mut counter = 2;
+        while is_taken(&name) {
+            name = format!("Group {counter}");
+            counter += 1;
+        }
+        name
+    }
+
+    /// Create a fresh tab group containing the tab, named uniquely in its container.
+    pub fn create_tab_group(&mut self, id: TabId) {
+        let Some(container) = self
+            .tabs
+            .iter()
+            .find(|tab| tab.id == id)
+            .map(|tab| tab.project)
+        else {
+            return;
+        };
+        let name = Self::unique_group_name(|name| {
+            self.tabs.iter().any(|tab| tab.in_group(container, name))
+        });
+        self.set_tab_group(id, Some(name));
+    }
+
+    /// Move the tab into `group` within its container, `None` leaves any group.
+    pub fn set_tab_group(&mut self, id: TabId, group: Option<String>) {
+        if let Some(tab) = self.tabs.iter_mut().find(|tab| tab.id == id) {
+            tab.group = group;
+        }
+    }
+
+    pub fn rename_tab_group(&mut self, container: Option<ProjectId>, old: &str, new: String) {
+        if new.is_empty() || self.tabs.iter().any(|tab| tab.in_group(container, &new)) {
+            return;
+        }
+        for tab in self.tabs.iter_mut().filter(|tab| tab.project == container) {
+            if tab.group.as_deref() == Some(old) {
+                tab.group = Some(new.clone());
+            }
+        }
+        if self
+            .collapsed_tab_groups
+            .remove(&(container, old.to_string()))
+        {
+            self.collapsed_tab_groups.insert((container, new));
+        }
+    }
+
+    pub fn toggle_tab_group(&mut self, container: Option<ProjectId>, name: &str) {
+        let key = (container, name.to_string());
+        if !self.collapsed_tab_groups.remove(&key) {
+            self.collapsed_tab_groups.insert(key);
+        }
+    }
+
+    /// File a tab into a group, placed right after the group's last member
+    /// so the sidebar position animates along with the membership change.
+    pub fn append_tab_to_group(
+        &mut self,
+        tab_id: TabId,
+        container: Option<ProjectId>,
+        group_name: &str,
+    ) {
+        let Some(from_index) = self.tabs.iter().position(|tab| tab.id == tab_id) else {
+            return;
+        };
+        if self.tabs[from_index].worktree.is_some() {
+            return;
+        }
+        let active_id = self.active_tab().map(|tab| tab.id);
+        let mut tab = self.tabs.remove(from_index);
+        tab.project = container;
+        tab.group = Some(group_name.to_string());
+        let insert_at = self
+            .tabs
+            .iter()
+            .rposition(|other| other.in_group(container, group_name))
+            .map_or(self.tabs.len(), |position| position + 1);
+        self.tabs.insert(insert_at, tab);
+        self.restore_active(active_id);
+    }
+
+    /// Move a whole tab group so its members sit right before the target tab.
+    pub fn move_tab_group(&mut self, container: Option<ProjectId>, name: &str, target_id: TabId) {
+        let Some(target) = self.tabs.iter().find(|tab| tab.id == target_id) else {
+            return;
+        };
+        let target_project = target.project;
+        let clashes = target_project != container
+            && self
+                .tabs
+                .iter()
+                .any(|tab| tab.in_group(target_project, name));
+        if target.in_group(container, name) || clashes {
+            return;
+        }
+        let active_id = self.active_tab().map(|tab| tab.id);
+        let (mut members, remaining): (Vec<Tab>, Vec<Tab>) = self
+            .tabs
+            .drain(..)
+            .partition(|tab| tab.in_group(container, name));
+        self.tabs = remaining;
+        for member in &mut members {
+            member.project = target_project;
+        }
+        let insert_at = self
+            .tabs
+            .iter()
+            .position(|tab| tab.id == target_id)
+            .unwrap_or(self.tabs.len());
+        self.tabs.splice(insert_at..insert_at, members);
+        if target_project != container
+            && self
+                .collapsed_tab_groups
+                .remove(&(container, name.to_string()))
+        {
+            self.collapsed_tab_groups
+                .insert((target_project, name.to_string()));
+        }
+        self.restore_active(active_id);
+    }
+
+    /// Delete a tab group, its members go back to the ungrouped list.
+    pub fn dissolve_tab_group(&mut self, container: Option<ProjectId>, name: &str) {
+        for tab in self.tabs.iter_mut() {
+            if tab.in_group(container, name) {
+                tab.group = None;
+            }
+        }
+        self.collapsed_tab_groups
+            .remove(&(container, name.to_string()));
+    }
+
+    /// Mutate a project's groups, dropping empty ones and persisting the result.
+    fn update_groups(&mut self, id: ProjectId, mutate: impl FnOnce(&mut Project)) {
+        if let Some(project) = self.project_mut(id) {
+            mutate(project);
+            project.groups.retain(|group| !group.worktrees.is_empty());
+            session::save_worktree_groups(&project.root, &project.groups);
+        }
+    }
+
+    /// Create a fresh group containing `worktree` and persist it.
+    pub fn create_worktree_group(&mut self, id: ProjectId, worktree: &str) {
+        self.update_groups(id, |project| {
+            project.ungroup_worktree(worktree);
+            let name = Self::unique_group_name(|name| {
+                project.groups.iter().any(|group| group.name == name)
+            });
+            project
+                .groups
+                .push(WorktreeGroup::new(name, worktree.to_string()));
+        });
+    }
+
+    /// Move `worktree` into the group called `group_name`, leaving any previous one.
+    pub fn add_worktree_to_group(&mut self, id: ProjectId, group_name: &str, worktree: &str) {
+        self.update_groups(id, |project| {
+            project.ungroup_worktree(worktree);
+            if let Some(group) = project
+                .groups
+                .iter_mut()
+                .find(|group| group.name == group_name)
+            {
+                group.worktrees.push(worktree.to_string());
+            }
+        });
+    }
+
+    /// Take `worktree` out of whatever group holds it.
+    pub fn remove_worktree_from_group(&mut self, id: ProjectId, worktree: &str) {
+        self.update_groups(id, |project| project.ungroup_worktree(worktree));
+    }
+
+    /// Move a whole group so its members sit right before `target` in the order.
+    pub fn move_worktree_group(&mut self, id: ProjectId, group_name: &str, target: &str) {
+        let Some(project) = self.project_mut(id) else {
+            return;
+        };
+        let Some(members) = project
+            .groups
+            .iter()
+            .find(|group| group.name == group_name)
+            .map(|group| group.worktrees.clone())
+        else {
+            return;
+        };
+        if members.iter().any(|name| name == target) {
+            return;
+        }
+        let mut names = project.ordered_worktree_names();
+        let block: Vec<String> = names
+            .iter()
+            .filter(|name| members.contains(name))
+            .cloned()
+            .collect();
+        names.retain(|name| !members.contains(name));
+        let destination = names
+            .iter()
+            .position(|name| name == target)
+            .unwrap_or(names.len());
+        names.splice(destination..destination, block);
+        project.worktree_order = names;
+        session::save_worktree_order(&project.root, &project.worktree_order);
+    }
+
+    /// Move a whole group so it sits right before another group.
+    pub fn move_worktree_group_before(&mut self, id: ProjectId, dragged: &str, target: &str) {
+        let Some(first_member) = self.project(id).and_then(|project| {
+            let target_group = project.groups.iter().find(|group| group.name == target)?;
+            project
+                .ordered_worktree_names()
+                .into_iter()
+                .find(|name| target_group.worktrees.contains(name))
+        }) else {
+            return;
+        };
+        self.move_worktree_group(id, dragged, &first_member);
+    }
+
+    /// Rename a group, ignoring empty or clashing names.
+    pub fn rename_worktree_group(&mut self, id: ProjectId, old: &str, new: String) {
+        self.update_groups(id, |project| {
+            if new.is_empty() || project.groups.iter().any(|group| group.name == new) {
+                return;
+            }
+            if let Some(group) = project.groups.iter_mut().find(|group| group.name == old) {
+                group.name = new;
+            }
+        });
+    }
+
+    pub fn toggle_worktree_group(&mut self, id: ProjectId, name: &str) {
+        self.update_groups(id, |project| {
+            if let Some(group) = project.groups.iter_mut().find(|group| group.name == name) {
+                group.collapsed = !group.collapsed;
+            }
+        });
+    }
+
+    /// Delete a group, its members go back to the ungrouped list.
+    pub fn dissolve_worktree_group(&mut self, id: ProjectId, name: &str) {
+        self.update_groups(id, |project| {
+            project.groups.retain(|group| group.name != name);
+        });
     }
 
     /// Remove a worktree from its project's archived list.
@@ -743,7 +1091,7 @@ impl AppState {
         };
         let mut entries: Vec<WorktreeEntry> = Vec::new();
         let mut archived_entries: Vec<WorktreeEntry> = Vec::new();
-        for worktree in sorted_worktrees(&project.worktrees, &project.worktree_order) {
+        for worktree in project.sorted_worktrees() {
             let archived = project.archived.contains(&worktree.name);
             if hidden(archived, &worktree.name) {
                 continue;
@@ -997,6 +1345,9 @@ impl AppState {
             }
             self.tabs[from_idx].project = target_project;
         }
+        if self.tabs[from_idx].worktree.is_none() {
+            self.tabs[from_idx].group = self.tabs[to_idx].group.clone();
+        }
         let active_id = self.tabs[self.active_tab].id;
         if from_idx < to_idx {
             self.tabs.insert(to_idx + 1, self.tabs[from_idx].clone());
@@ -1120,336 +1471,311 @@ impl RadioChannel<AppState> for AppChannel {}
 /// Scope-independent handle to the app state, safe in detached tasks.
 pub type AppStation = RadioStation<AppState, AppChannel>;
 
-pub fn watch_panel(
-    mut station: AppStation,
-    tab_id: TabId,
-    panel_id: AccessibilityId,
-    handle: TerminalHandle,
-) -> Rc<PanelTask> {
-    // Detached from the component scope, cancelled by PanelTask on drop.
-    let task = spawn_forever(async move {
-        let idle = Duration::from_secs(1);
-        loop {
-            futures::select! {
-                _ = handle.title_changed().fuse() => {
-                    let title = handle.title().unwrap_or_default();
-                    if !title.is_empty() {
-                        let mut state = station.write_channel(AppChannel::Tabs);
-                        if let Some(tab) =
-                            state.tabs.iter_mut().find(|t| t.id == tab_id)
-                            && tab.active_panel == panel_id
-                        {
-                            tab.title = title;
-                        }
-                    }
-                }
-                _ = handle.output_received().fuse() => {
-                    {
-                        let mut state = station.write_channel(AppChannel::Tabs);
-                        if let Some(tab) = state.tabs.iter_mut().find(|t| t.id == tab_id) {
-                            tab.last_output = Instant::now();
-                            tab.outputting = true;
-                        }
-                    }
-
-                    // Keep consuming output until idle for 1 second.
-                    loop {
-                        futures::select! {
-                            _ = handle.output_received().fuse() => {
-                                let mut state = station.write_channel(AppChannel::Tabs);
-                                if let Some(tab) = state.tabs.iter_mut().find(|t| t.id == tab_id) {
-                                    tab.last_output = Instant::now();
-                                }
+impl AppState {
+    fn watch_panel(
+        mut station: AppStation,
+        tab_id: TabId,
+        panel_id: AccessibilityId,
+        handle: TerminalHandle,
+    ) -> Rc<PanelTask> {
+        // Detached from the component scope, cancelled by PanelTask on drop.
+        let task = spawn_forever(async move {
+            let idle = Duration::from_secs(1);
+            loop {
+                futures::select! {
+                    _ = handle.title_changed().fuse() => {
+                        let title = handle.title().unwrap_or_default();
+                        if !title.is_empty() {
+                            let mut state = station.write_channel(AppChannel::Tabs);
+                            if let Some(tab) =
+                                state.tabs.iter_mut().find(|t| t.id == tab_id)
+                                && tab.active_panel == panel_id
+                            {
+                                tab.title = title;
                             }
-                            _ = Timer::after(idle).fuse() => break,
                         }
                     }
+                    _ = handle.output_received().fuse() => {
+                        {
+                            let mut state = station.write_channel(AppChannel::Tabs);
+                            if let Some(tab) = state.tabs.iter_mut().find(|t| t.id == tab_id) {
+                                tab.last_output = Instant::now();
+                                tab.outputting = true;
+                            }
+                        }
 
-                    // Only clear if no other panel refreshed the timestamp.
-                    let mut state = station.write_channel(AppChannel::Tabs);
-                    if let Some(tab) = state.tabs.iter_mut().find(|t| t.id == tab_id)
-                        && tab.last_output.elapsed() > idle
-                    {
-                        tab.outputting = false;
+                        // Keep consuming output until idle for 1 second.
+                        loop {
+                            futures::select! {
+                                _ = handle.output_received().fuse() => {
+                                    let mut state = station.write_channel(AppChannel::Tabs);
+                                    if let Some(tab) = state.tabs.iter_mut().find(|t| t.id == tab_id) {
+                                        tab.last_output = Instant::now();
+                                    }
+                                }
+                                _ = Timer::after(idle).fuse() => break,
+                            }
+                        }
+
+                        // Only clear if no other panel refreshed the timestamp.
+                        let mut state = station.write_channel(AppChannel::Tabs);
+                        if let Some(tab) = state.tabs.iter_mut().find(|t| t.id == tab_id)
+                            && tab.last_output.elapsed() > idle
+                        {
+                            tab.outputting = false;
+                        }
+                    }
+                    _ = handle.clipboard_changed().fuse() => {
+                        let text = handle.clipboard_content().unwrap_or_default();
+                        let _ = Clipboard::set(text);
+                    }
+                    _ = handle.closed().fuse() => break,
+                }
+            }
+        });
+        Rc::new(PanelTask::new(task))
+    }
+
+    fn wire_panel(
+        station: AppStation,
+        state: &mut AppState,
+        tab_id: TabId,
+        panel_id: AccessibilityId,
+        handle: TerminalHandle,
+    ) {
+        let task = Self::watch_panel(station, tab_id, panel_id, handle);
+        state
+            .active_tab_mut()
+            .unwrap()
+            .panels
+            .set_task(panel_id, task);
+    }
+
+    fn wire_tab(
+        mut station: AppStation,
+        new_tab: impl FnOnce(&mut AppState) -> (TabId, AccessibilityId, TerminalHandle),
+    ) {
+        let mut state = station.write_channel(AppChannel::Tabs);
+        let (tab_id, panel_id, handle) = new_tab(&mut state);
+        Self::wire_panel(station, &mut state, tab_id, panel_id, handle);
+    }
+
+    /// Create a tab and wire its panel watcher.
+    pub fn create_tab(
+        station: AppStation,
+        project: Option<ProjectId>,
+        worktree: Option<PathBuf>,
+        cwd: Option<PathBuf>,
+    ) {
+        Self::wire_tab(station, |state| state.new_tab_with(project, worktree, cwd));
+    }
+
+    /// Context-aware new tab plus its panel watcher.
+    pub fn create_context_tab(station: AppStation) {
+        Self::wire_tab(station, AppState::new_tab);
+    }
+
+    /// Split the active panel and wire the new panel's watcher.
+    pub fn split_active_panel(mut station: AppStation, axis: Axis) {
+        let mut state = station.write_channel(AppChannel::Tabs);
+        if let Some((panel_id, handle)) = state.split(axis) {
+            let tab_id = state.active_tab().unwrap().id;
+            Self::wire_panel(station, &mut state, tab_id, panel_id, handle);
+        }
+    }
+
+    /// New plain tab in `project`, or a loose one when `None`.
+    pub fn create_plain_tab(station: AppStation, project: Option<ProjectId>) {
+        let cwd = {
+            let state = station.peek();
+            match project {
+                Some(id) => state
+                    .active_tab()
+                    .filter(|t| t.project == Some(id))
+                    .and_then(|t| t.panels.handle(t.active_panel))
+                    .and_then(|h| h.cwd())
+                    .or_else(|| state.project(id).map(|p| p.main.clone())),
+                None => state.active_cwd(),
+            }
+        };
+        Self::create_tab(station, project, None, cwd);
+    }
+
+    /// Open (or switch to) a project and refresh its worktrees.
+    pub fn open_project(mut station: AppStation, info: ProjectInfo) {
+        session::touch_recent_project(&info.root);
+        let main = info.main.clone();
+        let (project_id, existing_tab) = {
+            let mut state = station.write_channel(AppChannel::Tabs);
+            let id = state.add_project(info);
+            let tab = state
+                .tabs
+                .iter()
+                .find(|t| t.project == Some(id))
+                .map(|t| t.id);
+            (id, tab)
+        };
+        match existing_tab {
+            Some(tab_id) => station
+                .write_channel(AppChannel::Tabs)
+                .switch_to_tab(tab_id),
+            None => Self::create_tab(station, Some(project_id), Some(main), None),
+        }
+        Self::refresh_worktrees(station, project_id, false);
+    }
+
+    /// Refresh a project's worktrees in the background, writing only on change.
+    /// `forced` also covers archived rows and collapsed projects.
+    pub fn refresh_worktrees(mut station: AppStation, project_id: ProjectId, forced: bool) {
+        let Some((main, skip_diffs, skip_all)) = ({
+            let state = station.peek();
+            state.project(project_id).map(|p| {
+                let hidden = if forced || p.show_archived {
+                    vec![]
+                } else {
+                    p.archived.clone()
+                };
+                (p.main.clone(), hidden, p.collapsed && !forced)
+            })
+        }) else {
+            return;
+        };
+        spawn_forever(async move {
+            match git::run_async(move || git::list_worktrees(&main, &skip_diffs, skip_all)).await {
+                Ok(worktrees) => {
+                    let changed = station
+                        .peek()
+                        .project(project_id)
+                        .is_some_and(|p| p.worktrees != worktrees);
+                    if changed {
+                        let mut state = station.write_channel(AppChannel::Tabs);
+                        if let Some(project) = state.project_mut(project_id) {
+                            project.worktrees = worktrees;
+                        }
                     }
                 }
-                _ = handle.clipboard_changed().fuse() => {
-                    let text = handle.clipboard_content().unwrap_or_default();
-                    let _ = Clipboard::set(text);
-                }
-                _ = handle.closed().fuse() => break,
+                Err(e) => station.write_channel(AppChannel::Tabs).notice = Some(e),
+            }
+        });
+    }
+
+    fn restore_tab(mut station: AppStation, saved: &SessionTab, project: Option<ProjectId>) {
+        if let Some(worktree) = &saved.worktree {
+            if !worktree.is_dir() {
+                return;
+            }
+            let archived = project.is_some_and(|id| {
+                station
+                    .peek()
+                    .project(id)
+                    .is_some_and(|p| p.archived.contains(&git::dir_name(worktree)))
+            });
+            if archived {
+                return;
             }
         }
-    });
-    Rc::new(PanelTask::new(task))
-}
-
-fn wire_panel(
-    station: AppStation,
-    state: &mut AppState,
-    tab_id: TabId,
-    panel_id: AccessibilityId,
-    handle: TerminalHandle,
-) {
-    let task = watch_panel(station, tab_id, panel_id, handle);
-    state
-        .active_tab_mut()
-        .unwrap()
-        .panels
-        .set_task(panel_id, task);
-}
-
-fn wire_tab(
-    mut station: AppStation,
-    new_tab: impl FnOnce(&mut AppState) -> (TabId, AccessibilityId, TerminalHandle),
-) {
-    let mut state = station.write_channel(AppChannel::Tabs);
-    let (tab_id, panel_id, handle) = new_tab(&mut state);
-    wire_panel(station, &mut state, tab_id, panel_id, handle);
-}
-
-/// Create a tab and wire its panel watcher.
-pub fn create_tab(
-    station: AppStation,
-    project: Option<ProjectId>,
-    worktree: Option<PathBuf>,
-    cwd: Option<PathBuf>,
-) {
-    wire_tab(station, |state| state.new_tab_with(project, worktree, cwd));
-}
-
-/// Context-aware new tab plus its panel watcher.
-pub fn create_context_tab(station: AppStation) {
-    wire_tab(station, AppState::new_tab);
-}
-
-/// Split the active panel and wire the new panel's watcher.
-pub fn split_active_panel(mut station: AppStation, axis: Axis) {
-    let mut state = station.write_channel(AppChannel::Tabs);
-    if let Some((panel_id, handle)) = state.split(axis) {
-        let tab_id = state.active_tab().unwrap().id;
-        wire_panel(station, &mut state, tab_id, panel_id, handle);
-    }
-}
-
-/// New plain tab in `project`, or a loose one when `None`.
-pub fn create_plain_tab(station: AppStation, project: Option<ProjectId>) {
-    let cwd = {
-        let state = station.peek();
-        match project {
-            Some(id) => state
-                .active_tab()
-                .filter(|t| t.project == Some(id))
-                .and_then(|t| t.panels.handle(t.active_panel))
-                .and_then(|h| h.cwd())
-                .or_else(|| state.project(id).map(|p| p.main.clone())),
-            None => state.active_cwd(),
-        }
-    };
-    create_tab(station, project, None, cwd);
-}
-
-/// Open (or switch to) a project and refresh its worktrees.
-pub fn open_project(mut station: AppStation, info: ProjectInfo) {
-    session::touch_recent_project(&info.root);
-    let main = info.main.clone();
-    let (project_id, existing_tab) = {
+        let shell = station.peek().shell.clone();
+        let panels = PanelNode::from_layout(&saved.layout, &shell, saved.worktree.as_deref());
+        let leaves = panels.leaves();
+        let active_panel = leaves
+            .get(saved.active_leaf)
+            .or_else(|| leaves.first())
+            .copied()
+            .unwrap();
+        let mut tab = Tab::from_panels(
+            panels,
+            active_panel,
+            saved.custom_title.clone(),
+            project,
+            saved.worktree.clone(),
+        );
+        tab.group = saved.group.clone();
+        let tab_id = tab.id;
         let mut state = station.write_channel(AppChannel::Tabs);
-        let id = state.add_project(info);
-        let tab = state
-            .tabs
+        let handles: Vec<(AccessibilityId, TerminalHandle)> = leaves
             .iter()
-            .find(|t| t.project == Some(id))
-            .map(|t| t.id);
-        (id, tab)
-    };
-    match existing_tab {
-        Some(tab_id) => station
-            .write_channel(AppChannel::Tabs)
-            .switch_to_tab(tab_id),
-        None => create_tab(station, Some(project_id), Some(main), None),
+            .filter_map(|id| tab.panels.handle(*id).map(|h| (*id, h.clone())))
+            .collect();
+        state.tabs.push(tab);
+        state.active_tab = state.tabs.len() - 1;
+        for (panel_id, handle) in handles {
+            Self::wire_panel(station, &mut state, tab_id, panel_id, handle);
+        }
     }
-    refresh_worktrees(station, project_id);
-}
 
-/// Refresh a project's worktrees in the background, writing only on change.
-pub fn refresh_worktrees(station: AppStation, project_id: ProjectId) {
-    refresh_worktrees_scoped(station, project_id, false);
-}
-
-/// Refresh even where diffs are normally skipped: archived rows and collapsed projects.
-pub fn force_refresh_worktrees(station: AppStation, project_id: ProjectId) {
-    refresh_worktrees_scoped(station, project_id, true);
-}
-
-fn refresh_worktrees_scoped(mut station: AppStation, project_id: ProjectId, forced: bool) {
-    let Some((main, skip_diffs, skip_all)) = ({
-        let state = station.peek();
-        state.project(project_id).map(|p| {
-            let hidden = if forced || p.show_archived {
-                vec![]
-            } else {
-                p.archived.clone()
-            };
-            (p.main.clone(), hidden, p.collapsed && !forced)
-        })
-    }) else {
-        return;
-    };
-    spawn_forever(async move {
-        match git::run_async(move || git::list_worktrees(&main, &skip_diffs, skip_all)).await {
-            Ok(worktrees) => {
-                let changed = station
+    /// Reopen a saved session's projects and tabs, detecting projects off the UI thread.
+    pub fn restore_session(mut station: AppStation, saved: &Session) {
+        // Autosave updates the restored session entry in place.
+        station.write_channel(AppChannel::Tabs).started_at = saved.started_at;
+        let saved_projects = saved.projects.clone();
+        let loose_tabs = saved.loose_tabs.clone();
+        let active_tab = saved.active_tab;
+        spawn_forever(async move {
+            let roots: Vec<PathBuf> = saved_projects.iter().map(|p| p.root.clone()).collect();
+            let results = git::run_async(move || {
+                Ok(roots
+                    .iter()
+                    .map(|r| git::detect_project(r))
+                    .collect::<Vec<_>>())
+            })
+            .await
+            .unwrap_or_default();
+            let mut skipped = 0;
+            let mut opened_roots = Vec::new();
+            for (saved_project, result) in saved_projects.iter().zip(results) {
+                let Ok(info) = result else {
+                    skipped += 1;
+                    continue;
+                };
+                opened_roots.push(info.root.clone());
+                let main = info.main.clone();
+                let project_id = station.write_channel(AppChannel::Tabs).add_project(info);
+                let skip_diffs = station
                     .peek()
                     .project(project_id)
-                    .is_some_and(|p| p.worktrees != worktrees);
-                if changed {
-                    let mut state = station.write_channel(AppChannel::Tabs);
-                    if let Some(project) = state.project_mut(project_id) {
+                    .map(|p| p.archived.clone())
+                    .unwrap_or_default();
+                let worktrees =
+                    git::run_async(move || git::list_worktrees(&main, &skip_diffs, false))
+                        .await
+                        .unwrap_or_default();
+                let clean: HashSet<&Path> = worktrees
+                    .iter()
+                    .filter(|wt| wt.diff.is_some_and(|d| d.is_clean()))
+                    .map(|wt| wt.path.as_path())
+                    .collect();
+                for tab in &saved_project.tabs {
+                    if tab.worktree.as_deref().is_some_and(|wt| clean.contains(wt)) {
+                        continue;
+                    }
+                    Self::restore_tab(station, tab, Some(project_id));
+                }
+                let mut state = station.write_channel(AppChannel::Tabs);
+                let has_tabs = state.tabs.iter().any(|t| t.project == Some(project_id));
+                if let Some(project) = state.project_mut(project_id) {
+                    if !worktrees.is_empty() {
                         project.worktrees = worktrees;
+                    }
+                    if !has_tabs {
+                        project.collapsed = true;
                     }
                 }
             }
-            Err(e) => station.write_channel(AppChannel::Tabs).notice = Some(e),
-        }
-    });
-}
-
-fn build_panels(layout: &PanelLayout, shell: &str, fallback_cwd: Option<&Path>) -> PanelNode {
-    match layout {
-        PanelLayout::Leaf { cwd } => {
-            let cwd = cwd
-                .as_deref()
-                .filter(|c| c.is_dir())
-                .or_else(|| fallback_cwd.filter(|c| c.is_dir()))
-                .map(Path::to_path_buf);
-            PanelNode::new_leaf(shell, cwd).1
-        }
-        PanelLayout::Horizontal(a, b) => PanelNode::Horizontal(
-            Box::new(build_panels(a, shell, fallback_cwd)),
-            Box::new(build_panels(b, shell, fallback_cwd)),
-        ),
-        PanelLayout::Vertical(a, b) => PanelNode::Vertical(
-            Box::new(build_panels(a, shell, fallback_cwd)),
-            Box::new(build_panels(b, shell, fallback_cwd)),
-        ),
-    }
-}
-
-fn restore_tab(mut station: AppStation, saved: &SessionTab, project: Option<ProjectId>) {
-    if let Some(worktree) = &saved.worktree {
-        if !worktree.is_dir() {
-            return;
-        }
-        let archived = project.is_some_and(|id| {
-            station
-                .peek()
-                .project(id)
-                .is_some_and(|p| p.archived.contains(&git::dir_name(worktree)))
-        });
-        if archived {
-            return;
-        }
-    }
-    let shell = station.peek().shell.clone();
-    let panels = build_panels(&saved.layout, &shell, saved.worktree.as_deref());
-    let leaves = panels.leaves();
-    let active_panel = leaves
-        .get(saved.active_leaf)
-        .or_else(|| leaves.first())
-        .copied()
-        .unwrap();
-    let tab = Tab::from_panels(
-        panels,
-        active_panel,
-        saved.custom_title.clone(),
-        project,
-        saved.worktree.clone(),
-    );
-    let tab_id = tab.id;
-    let mut state = station.write_channel(AppChannel::Tabs);
-    let handles: Vec<(AccessibilityId, TerminalHandle)> = leaves
-        .iter()
-        .filter_map(|id| tab.panels.handle(*id).map(|h| (*id, h.clone())))
-        .collect();
-    state.tabs.push(tab);
-    state.active_tab = state.tabs.len() - 1;
-    for (panel_id, handle) in handles {
-        wire_panel(station, &mut state, tab_id, panel_id, handle);
-    }
-}
-
-/// Reopen a saved session's projects and tabs, detecting projects off the UI thread.
-pub fn restore_session(mut station: AppStation, saved: &Session) {
-    // Autosave updates the restored session entry in place.
-    station.write_channel(AppChannel::Tabs).started_at = saved.started_at;
-    let saved_projects = saved.projects.clone();
-    let loose_tabs = saved.loose_tabs.clone();
-    let active_tab = saved.active_tab;
-    spawn_forever(async move {
-        let roots: Vec<PathBuf> = saved_projects.iter().map(|p| p.root.clone()).collect();
-        let results = git::run_async(move || {
-            Ok(roots
-                .iter()
-                .map(|r| git::detect_project(r))
-                .collect::<Vec<_>>())
-        })
-        .await
-        .unwrap_or_default();
-        let mut skipped = 0;
-        let mut opened_roots = Vec::new();
-        for (saved_project, result) in saved_projects.iter().zip(results) {
-            let Ok(info) = result else {
-                skipped += 1;
-                continue;
-            };
-            opened_roots.push(info.root.clone());
-            let main = info.main.clone();
-            let project_id = station.write_channel(AppChannel::Tabs).add_project(info);
-            let skip_diffs = station
-                .peek()
-                .project(project_id)
-                .map(|p| p.archived.clone())
-                .unwrap_or_default();
-            let worktrees = git::run_async(move || git::list_worktrees(&main, &skip_diffs, false))
-                .await
-                .unwrap_or_default();
-            let clean: HashSet<&Path> = worktrees
-                .iter()
-                .filter(|wt| wt.diff.is_some_and(|d| d.is_clean()))
-                .map(|wt| wt.path.as_path())
-                .collect();
-            for tab in &saved_project.tabs {
-                if tab.worktree.as_deref().is_some_and(|wt| clean.contains(wt)) {
-                    continue;
-                }
-                restore_tab(station, tab, Some(project_id));
+            session::touch_recent_projects(&opened_roots);
+            for tab in &loose_tabs {
+                Self::restore_tab(station, tab, None);
             }
             let mut state = station.write_channel(AppChannel::Tabs);
-            let has_tabs = state.tabs.iter().any(|t| t.project == Some(project_id));
-            if let Some(project) = state.project_mut(project_id) {
-                if !worktrees.is_empty() {
-                    project.worktrees = worktrees;
-                }
-                if !has_tabs {
-                    project.collapsed = true;
-                }
+            if !state.tabs.is_empty() {
+                state.active_tab = active_tab.min(state.tabs.len() - 1);
+                state.focus_active_panel();
             }
-        }
-        session::touch_recent_projects(&opened_roots);
-        for tab in &loose_tabs {
-            restore_tab(station, tab, None);
-        }
-        let mut state = station.write_channel(AppChannel::Tabs);
-        if !state.tabs.is_empty() {
-            state.active_tab = active_tab.min(state.tabs.len() - 1);
-            state.focus_active_panel();
-        }
-        if skipped > 0 {
-            state.notice = Some(format!(
-                "{skipped} project{} from this session no longer exist",
-                if skipped == 1 { "" } else { "s" }
-            ));
-        }
-    });
+            if skipped > 0 {
+                state.notice = Some(format!(
+                    "{skipped} project{} from this session no longer exist",
+                    if skipped == 1 { "" } else { "s" }
+                ));
+            }
+        });
+    }
 }

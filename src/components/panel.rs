@@ -83,24 +83,30 @@ impl Component for Panel {
         };
         let border = if drop_hovered {
             Some(Border::new().fill((160, 160, 160)).width(2.0))
-        } else if has_multiple_panels {
-            let border_color: Color = if is_active {
-                (120, 120, 120).into()
-            } else {
-                (45, 45, 45).into()
-            };
-            Some(Border::new().fill(border_color).width(2.0))
+        } else if has_multiple_panels && is_active {
+            Some(Border::new().fill((70, 70, 70)).width(2.0))
         } else {
-            None
+            Some(Border::new().fill(Color::TRANSPARENT).width(2.0))
         };
+
+        let title = self
+            .handle
+            .title()
+            .filter(|t| !t.is_empty())
+            .unwrap_or_else(|| "terminal".into());
 
         let panel = rect()
             .expanded()
             .layer(Layer::OverlayLevel(1))
             .padding(8.)
-            .corner_radius(8.)
+            .corner_radius(12.)
+            .overflow(Overflow::Clip)
+            .shadow((0., 2., 8., 0., Color::from_argb(60, 0, 0, 0)))
             .background(bg_color)
             .border(border)
+            .vertical()
+            .content(Content::flex())
+            .spacing(6.)
             .a11y_id(panel_id)
             .a11y_auto_focus(is_active)
             .on_key_up({
@@ -147,7 +153,7 @@ impl Component for Panel {
                     Some(font_family) => terminal.font_family(font_family),
                     None => terminal,
                 };
-                terminal
+                let terminal = terminal
                     .on_measured(move |(char_width, line_height)| {
                         cell_size.set(Size2D::new(char_width, line_height))
                     })
@@ -234,7 +240,11 @@ impl Component for Panel {
                                 handle.wheel(event.delta_y, row, col);
                             }
                         }
-                    })
+                    });
+                rect()
+                    .width(Size::fill())
+                    .height(Size::flex(1.))
+                    .child(terminal)
             });
 
         DragZone::new(
@@ -248,11 +258,6 @@ impl Component for Panel {
         )
         .drag_threshold(if alt_held { 4. } else { f64::INFINITY })
         .maybe(alt_held, |el| {
-            let title = self
-                .handle
-                .title()
-                .filter(|t| !t.is_empty())
-                .unwrap_or_else(|| "terminal".into());
             el.drag_element(
                 drag_preview(
                     label()

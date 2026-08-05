@@ -22,8 +22,7 @@ impl Component for TabContent {
         if let Some(tab) = state.tabs.get(state.active_tab) {
             rect()
                 .expanded()
-                .background((45, 45, 45))
-                .padding(4.)
+                .padding((6., 6., 6., 0.))
                 .corner_radius(10.)
                 .child(render_node(
                     &tab.panels,
@@ -53,15 +52,15 @@ fn render_node(
             .height(Size::fill())
             .function(Function::Expo)
             .ease(Ease::Out)
-            .duration(Duration::from_millis(200))
+            .duration(Duration::from_millis(265))
             .animation_dependency(leaves.iter().position(|id| id == panel_id))
-            .child(Panel {
+            .child(rect().expanded().padding(1.).child(Panel {
                 panel_id: *panel_id,
                 handle: handle.clone(),
                 font_size,
                 font_family: font_family.map(str::to_string),
                 tab_id: *tab_id,
-            })
+            }))
             .into_element(),
         PanelNode::Horizontal(left, right) => ResizableContainer::new()
             .direction(Direction::Horizontal)

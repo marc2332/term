@@ -17,10 +17,7 @@ use crate::{
     config::Startup,
     session,
     shortcuts::{self, Shortcut},
-    state::{
-        AppChannel, AppState, Axis, Modal, create_context_tab, refresh_worktrees, restore_session,
-        split_active_panel,
-    },
+    state::{AppChannel, AppState, Axis, Modal},
 };
 
 #[derive(PartialEq, Clone)]
@@ -105,10 +102,10 @@ impl Component for App {
 
         use_hook(move || {
             match startup {
-                Startup::Fresh => create_context_tab(station),
+                Startup::Fresh => AppState::create_context_tab(station),
                 Startup::RestoreLast => {
                     if let Some(saved) = session::load_sessions().first() {
-                        restore_session(station, saved);
+                        AppState::restore_session(station, saved);
                     }
                 }
                 Startup::Welcome => {}
@@ -137,7 +134,7 @@ impl Component for App {
                     let project_ids: Vec<_> =
                         station.peek().projects.iter().map(|p| p.id).collect();
                     for project_id in project_ids {
-                        refresh_worktrees(station, project_id);
+                        AppState::refresh_worktrees(station, project_id, false);
                     }
                 }
             });
@@ -155,7 +152,7 @@ impl Component for App {
 
         rect()
             .expanded()
-            .background((15, 15, 15))
+            .background((38, 38, 38))
             .color((220, 220, 220))
             .corner_radius(CornerRadius::new_all(if edge_to_edge() { 0. } else { 12. }))
             .overflow(Overflow::Clip)
@@ -175,15 +172,19 @@ impl Component for App {
                     return;
                 };
                 match shortcut {
-                    Shortcut::NewTab => create_context_tab(station),
+                    Shortcut::NewTab => AppState::create_context_tab(station),
                     Shortcut::CloseTab => radio.write_channel(AppChannel::Tabs).close_active_tab(),
                     Shortcut::AddProject => {
                         radio.write_channel(AppChannel::Tabs).modal = Some(Modal::AddProject);
                     }
                     Shortcut::NextTab => radio.write_channel(AppChannel::Tabs).next_tab(),
                     Shortcut::PrevTab => radio.write_channel(AppChannel::Tabs).prev_tab(),
-                    Shortcut::SplitVertical => split_active_panel(station, Axis::Vertical),
-                    Shortcut::SplitHorizontal => split_active_panel(station, Axis::Horizontal),
+                    Shortcut::SplitVertical => {
+                        AppState::split_active_panel(station, Axis::Vertical)
+                    }
+                    Shortcut::SplitHorizontal => {
+                        AppState::split_active_panel(station, Axis::Horizontal)
+                    }
                     Shortcut::ClosePanel => {
                         radio.write_channel(AppChannel::Tabs).close_active_panel();
                     }
@@ -228,7 +229,7 @@ impl Component for App {
                             .horizontal()
                             .child(
                                 rect()
-                                    .width(Size::px(40.))
+                                    .width(Size::px(36.))
                                     .height(Size::fill())
                                     .child(TabBar),
                             )
@@ -243,7 +244,7 @@ impl Component for App {
                         ResizableContainer::new()
                             .direction(Direction::Horizontal)
                             .panel(
-                                ResizablePanel::new(PanelSize::px(240.))
+                                ResizablePanel::new(PanelSize::px(264.))
                                     .min_size(138.)
                                     .child(TabBar),
                             )

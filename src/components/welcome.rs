@@ -7,7 +7,7 @@ use std::path::PathBuf;
 
 use crate::git;
 use crate::session::{self, Session};
-use crate::state::{AppChannel, AppState, Modal, create_tab, open_project, restore_session};
+use crate::state::{AppChannel, AppState, Modal};
 
 #[derive(PartialEq, Clone, Copy)]
 pub struct Welcome;
@@ -56,7 +56,7 @@ impl Component for Welcome {
                             SvgViewer::new(lucide::terminal()),
                             "New Terminal",
                             true,
-                            move |_| create_tab(station, None, None, None),
+                            move |_| AppState::create_tab(station, None, None, None),
                         )),
                 )
                 .maybe(!recent.read().is_empty(), |el| {
@@ -167,7 +167,7 @@ impl Component for RecentProjectRow {
                 let root = root.clone();
                 spawn(async move {
                     match git::run_async(move || git::detect_project(&root)).await {
-                        Ok(info) => open_project(station, info),
+                        Ok(info) => AppState::open_project(station, info),
                         Err(e) => station.write_channel(AppChannel::Tabs).notice = Some(e),
                     }
                 });
@@ -257,7 +257,7 @@ impl Component for SessionRow {
         let restore = {
             let session_data = self.session.clone();
             move |_: Event<PressEventData>| {
-                restore_session(station, &session_data);
+                AppState::restore_session(station, &session_data);
             }
         };
 

@@ -6,7 +6,7 @@ use freya::radio::*;
 
 use crate::config::Config;
 use crate::git;
-use crate::state::{AppChannel, AppState, Modal, ProjectId, open_project};
+use crate::state::{AppChannel, AppState, Modal, ProjectId};
 
 type AppRadio = Radio<AppState, AppChannel>;
 
@@ -241,7 +241,7 @@ impl Component for AddProjectModal {
                 match git::run_async(move || git::detect_project(&expand_home(&value))).await {
                     Ok(info) => {
                         close_modal(radio);
-                        open_project(station, info);
+                        AppState::open_project(station, info);
                     }
                     Err(e) => error.set(Some(e)),
                 }
