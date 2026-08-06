@@ -229,7 +229,7 @@ impl Component for App {
                             .horizontal()
                             .child(
                                 rect()
-                                    .width(Size::px(36.))
+                                    .width(Size::px(44.))
                                     .height(Size::fill())
                                     .child(TabBar),
                             )

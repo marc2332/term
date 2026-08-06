@@ -395,9 +395,9 @@ impl Component for TabBar {
             .expanded()
             .overflow(Overflow::Clip)
             .padding(if sidebar_collapsed {
-                Gaps::new(4., 4., 4., 4.)
+                Gaps::new(4., 4., 6., 6.)
             } else {
-                Gaps::new(4., 0., 4., 4.)
+                Gaps::new(4., 0., 6., 6.)
             })
             .spacing(4.)
             .direction(Direction::Vertical)
@@ -459,6 +459,15 @@ fn bottom_actions(mut radio: AppRadio, station: AppStation, compact: bool) -> El
         rect()
             .width(Size::fill())
             .vertical()
+            .spacing(4.)
+            .child(sidebar_action_button(
+                SvgViewer::new(lucide::panel_left_open()),
+                "Expand Sidebar",
+                true,
+                move |_| {
+                    radio.write_channel(AppChannel::Tabs).toggle_sidebar();
+                },
+            ))
             .child(new_tab_button(station, None, true))
             .child(add_project_button(radio, true))
             .child(about_button(radio, true))
@@ -469,6 +478,13 @@ fn bottom_actions(mut radio: AppRadio, station: AppStation, compact: bool) -> El
             .horizontal()
             .main_align(Alignment::End)
             .spacing(4.)
+            .child(pill_button(
+                SvgViewer::new(lucide::panel_left_close()),
+                "Collapse Sidebar",
+                move |_| {
+                    radio.write_channel(AppChannel::Tabs).toggle_sidebar();
+                },
+            ))
             .child(pill_button(
                 SvgViewer::new(lucide::circle_plus()),
                 "New Tab",

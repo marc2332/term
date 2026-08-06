@@ -28,6 +28,7 @@ impl Component for Titlebar {
             return rect()
                 .width(Size::fill())
                 .height(Size::px(35.))
+                .padding((2., 0., 0., 0.))
                 .child(DragHandle { compact: true })
                 .into_element();
         }
