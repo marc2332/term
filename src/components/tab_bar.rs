@@ -657,7 +657,7 @@ fn draggable_worktree_row(mut radio: AppRadio, row: WorktreeRow) -> Element {
         .into_element()
 }
 
-fn menu_item(
+pub(crate) fn menu_item(
     icon: SvgViewer,
     text: impl Into<String>,
     mut action: impl FnMut() + 'static,

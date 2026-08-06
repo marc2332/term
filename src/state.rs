@@ -1419,13 +1419,19 @@ impl AppState {
     }
 
     pub fn close_active_panel(&mut self) {
-        if let Some(tab) = self.active_tab_mut() {
-            if let Some(new_root) = tab.panels.clone().remove_leaf(tab.active_panel) {
-                let leaves = new_root.leaves();
-                tab.panels = new_root;
-                if let Some(panel) = leaves.into_iter().last() {
-                    tab.activate_panel(panel);
-                }
+        if let Some((tab_id, panel)) = self.active_tab().map(|tab| (tab.id, tab.active_panel)) {
+            self.close_panel(tab_id, panel);
+        }
+    }
+
+    pub fn close_panel(&mut self, tab_id: TabId, panel: AccessibilityId) {
+        if let Some(tab) = self.tabs.iter_mut().find(|t| t.id == tab_id)
+            && let Some(new_root) = tab.panels.clone().remove_leaf(panel)
+        {
+            let leaves = new_root.leaves();
+            tab.panels = new_root;
+            if let Some(panel) = leaves.into_iter().last() {
+                tab.activate_panel(panel);
             }
         }
     }

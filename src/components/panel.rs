@@ -1,9 +1,10 @@
+use freya::icons::lucide;
 use freya::radio::*;
 use freya::{prelude::*, terminal::*};
 
-use crate::components::tab_bar::drag_preview;
+use crate::components::tab_bar::{drag_preview, menu_item};
 use crate::shortcuts::{self, Shortcut};
-use crate::state::{AppChannel, PanelNode, TabId};
+use crate::state::{AppChannel, AppState, Axis, PanelNode, TabId};
 
 #[derive(PartialEq, Clone)]
 pub struct Panel {
@@ -31,6 +32,7 @@ impl Component for Panel {
         let handle = self.handle.clone();
 
         let mut radio = use_radio(AppChannel::Tabs);
+        let station = use_radio_station::<AppState, AppChannel>();
 
         let mut cell_size = use_state(Size2D::zero);
         let mut terminal_area = use_state(Area::zero);
@@ -109,6 +111,26 @@ impl Component for Panel {
             .spacing(6.)
             .a11y_id(panel_id)
             .a11y_auto_focus(is_active)
+            .on_secondary_down(move |_: Event<PressEventData>| {
+                ContextMenu::open_from_down(
+                    Menu::new()
+                        .child(menu_item(
+                            SvgViewer::new(lucide::square_split_vertical()),
+                            "Split vertically",
+                            move || AppState::split_active_panel(station, Axis::Vertical),
+                        ))
+                        .child(menu_item(
+                            SvgViewer::new(lucide::square_split_horizontal()),
+                            "Split horizontally",
+                            move || AppState::split_active_panel(station, Axis::Horizontal),
+                        ))
+                        .child(menu_item(SvgViewer::new(lucide::x()), "Close", move || {
+                            radio
+                                .write_channel(AppChannel::Tabs)
+                                .close_panel(tab_id, panel_id);
+                        })),
+                )
+            })
             .on_key_up({
                 let handle = handle.clone();
                 move |e: Event<KeyboardEventData>| {
