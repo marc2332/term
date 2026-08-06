@@ -55,6 +55,30 @@ impl Session {
             && self.active_tab == other.active_tab
     }
 
+    /// Drop every worktree tab but the active one, so startup spawns a single terminal per session.
+    pub fn without_inactive_worktrees(&self) -> Self {
+        let mut pruned = self.clone();
+        let mut active_tab = self.active_tab;
+        let mut index = 0;
+        let lists = pruned
+            .projects
+            .iter_mut()
+            .map(|project| &mut project.tabs)
+            .chain([&mut pruned.loose_tabs]);
+        for tabs in lists {
+            tabs.retain(|tab| {
+                let keep = tab.worktree.is_none() || index == self.active_tab;
+                if !keep && index < self.active_tab {
+                    active_tab -= 1;
+                }
+                index += 1;
+                keep
+            });
+        }
+        pruned.active_tab = active_tab;
+        pruned
+    }
+
     pub fn summary(&self) -> String {
         let names: Vec<String> = self
             .projects

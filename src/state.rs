@@ -1707,8 +1707,9 @@ impl AppState {
     pub fn restore_session(mut station: AppStation, saved: &Session) {
         // Autosave updates the restored session entry in place.
         station.write_channel(AppChannel::Tabs).started_at = saved.started_at;
-        let saved_projects = saved.projects.clone();
-        let loose_tabs = saved.loose_tabs.clone();
+        let saved = saved.without_inactive_worktrees();
+        let saved_projects = saved.projects;
+        let loose_tabs = saved.loose_tabs;
         let active_tab = saved.active_tab;
         spawn_forever(async move {
             let roots: Vec<PathBuf> = saved_projects.iter().map(|p| p.root.clone()).collect();
@@ -1739,15 +1740,7 @@ impl AppState {
                     git::run_async(move || git::list_worktrees(&main, &skip_diffs, false))
                         .await
                         .unwrap_or_default();
-                let clean: HashSet<&Path> = worktrees
-                    .iter()
-                    .filter(|wt| wt.diff.is_some_and(|d| d.is_clean()))
-                    .map(|wt| wt.path.as_path())
-                    .collect();
                 for tab in &saved_project.tabs {
-                    if tab.worktree.as_deref().is_some_and(|wt| clean.contains(wt)) {
-                        continue;
-                    }
                     Self::restore_tab(station, tab, Some(project_id));
                 }
                 let mut state = station.write_channel(AppChannel::Tabs);
