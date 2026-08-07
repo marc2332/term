@@ -21,7 +21,11 @@ impl Component for Titlebar {
 
         use_side_effect(move || {
             let _ = Platform::get().root_size.read();
-            Platform::get().with_window(None, move |window| maximized.set(window.is_maximized()));
+            Platform::get().with_window(None, move |window| {
+                if let Some(mut maximized) = maximized.try_write() {
+                    *maximized = window.is_maximized();
+                }
+            });
         });
 
         if self.compact {
@@ -55,11 +59,11 @@ impl Component for Titlebar {
 
         rect()
             .width(Size::fill())
-            .height(Size::px(36.))
+            .height(Size::px(28.))
             .horizontal()
             .content(Content::flex())
             .cross_align(Alignment::Center)
-            .padding((0., 9.))
+            .padding(2.)
             .spacing(6.)
             .child(ControlButton {
                 icon: lucide::x(),

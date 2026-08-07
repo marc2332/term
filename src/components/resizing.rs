@@ -31,7 +31,9 @@ pub fn use_edge_to_edge() -> State<bool> {
     use_side_effect(move || {
         let _ = Platform::get().root_size.read();
         Platform::get().with_window(None, move |window| {
-            edge_to_edge.set(window.fullscreen().is_some() || window.is_maximized())
+            if let Some(mut edge_to_edge) = edge_to_edge.try_write() {
+                *edge_to_edge = window.fullscreen().is_some() || window.is_maximized();
+            }
         });
     });
 

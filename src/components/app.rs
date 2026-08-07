@@ -219,7 +219,7 @@ impl Component for App {
                         rect()
                             .expanded()
                             .vertical()
-                            .padding((4., 4., 0., 4.))
+                            .padding((6., 6., 0., 6.))
                             .child(Titlebar { compact: false })
                             .child(Welcome)
                             .into_element()

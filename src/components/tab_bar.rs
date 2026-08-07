@@ -6,6 +6,7 @@ use freya::radio::*;
 
 use async_io::Timer;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::time::Duration;
 
 use crate::components::titlebar::Titlebar;
@@ -395,9 +396,9 @@ impl Component for TabBar {
             .expanded()
             .overflow(Overflow::Clip)
             .padding(if sidebar_collapsed {
-                Gaps::new(4., 4., 6., 6.)
+                Gaps::new(6., 6., 6., 6.)
             } else {
-                Gaps::new(4., 0., 6., 6.)
+                Gaps::new(6., 0., 6., 6.)
             })
             .spacing(4.)
             .direction(Direction::Vertical)
@@ -685,12 +686,19 @@ pub(crate) fn menu_item(
         )
 }
 
+pub(crate) fn copy_path_item(path: PathBuf) -> MenuButton {
+    menu_item(SvgViewer::new(lucide::copy()), "Copy path", move || {
+        let _ = Clipboard::set(path.display().to_string());
+    })
+}
+
 fn open_project_menu(mut radio: AppRadio, station: AppStation, id: ProjectId) {
-    let has_archived = station
-        .peek()
-        .project(id)
-        .is_some_and(|p| !p.archived.is_empty());
+    let (root, has_archived) = match station.peek().project(id) {
+        Some(project) => (Some(project.root.clone()), !project.archived.is_empty()),
+        None => (None, false),
+    };
     let menu = Menu::new()
+        .map(root, |el, root| el.child(copy_path_item(root)))
         .child(menu_item(
             SvgViewer::new(lucide::refresh_cw()),
             "Refresh",
@@ -900,14 +908,12 @@ fn open_worktree_menu(
     archived: bool,
     tab_id: Option<TabId>,
 ) {
-    if is_main && tab_id.is_none() {
-        return;
-    }
     let in_group = radio
         .read()
         .project(project_id)
         .is_some_and(|project| project.group_of(&worktree.name).is_some());
     let menu = Menu::new()
+        .child(copy_path_item(worktree.path.clone()))
         .map(tab_id, |el, tab_id| {
             el.child(menu_item(
                 SvgViewer::new(lucide::moon()),
@@ -1736,14 +1742,24 @@ impl Component for TabButton {
                         return;
                     }
                     let custom_title = custom_title.clone();
-                    let in_group = radio
+                    let (in_group, path) = match radio
                         .read()
                         .tabs
                         .iter()
                         .find(|tab| tab.id == tab_id)
-                        .is_some_and(|tab| tab.group.is_some());
+                    {
+                        Some(tab) => (
+                            tab.group.is_some(),
+                            tab.panels
+                                .handle(tab.active_panel)
+                                .and_then(|handle| handle.cwd())
+                                .or_else(|| tab.worktree.clone()),
+                        ),
+                        None => (false, None),
+                    };
                     ContextMenu::open_from_down(
                         Menu::new()
+                            .map(path, |el, path| el.child(copy_path_item(path)))
                             .child(menu_item(
                                 SvgViewer::new(lucide::pencil()),
                                 "Rename",
