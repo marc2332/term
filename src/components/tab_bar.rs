@@ -1742,21 +1742,17 @@ impl Component for TabButton {
                         return;
                     }
                     let custom_title = custom_title.clone();
-                    let (in_group, path) = match radio
-                        .read()
-                        .tabs
-                        .iter()
-                        .find(|tab| tab.id == tab_id)
-                    {
-                        Some(tab) => (
-                            tab.group.is_some(),
-                            tab.panels
-                                .handle(tab.active_panel)
-                                .and_then(|handle| handle.cwd())
-                                .or_else(|| tab.worktree.clone()),
-                        ),
-                        None => (false, None),
-                    };
+                    let (in_group, path) =
+                        match radio.read().tabs.iter().find(|tab| tab.id == tab_id) {
+                            Some(tab) => (
+                                tab.group.is_some(),
+                                tab.panels
+                                    .handle(tab.active_panel)
+                                    .and_then(|handle| handle.cwd())
+                                    .or_else(|| tab.worktree.clone()),
+                            ),
+                            None => (false, None),
+                        };
                     ContextMenu::open_from_down(
                         Menu::new()
                             .map(path, |el, path| el.child(copy_path_item(path)))

@@ -600,6 +600,8 @@ pub struct AppState {
     pub sidebar_collapsed: bool,
     pub modal: Option<Modal>,
     pub notice: Option<String>,
+    /// Panels whose shell process ended on its own (not persisted).
+    pub exited_panels: HashSet<AccessibilityId>,
     /// Per-project name filter for the archived worktrees list (not persisted).
     pub archived_filters: HashMap<ProjectId, String>,
     /// Collapsed tab groups per container, `None` is the loose section.
@@ -620,6 +622,7 @@ impl AppState {
             sidebar_collapsed: false,
             modal: None,
             notice: None,
+            exited_panels: HashSet::new(),
             archived_filters: HashMap::new(),
             collapsed_tab_groups: HashSet::new(),
             started_at: session::now_secs(),
@@ -1223,6 +1226,9 @@ impl AppState {
 
     pub fn close_tab_by_id(&mut self, tab_id: TabId) {
         if let Some(idx) = self.tabs.iter().position(|t| t.id == tab_id) {
+            for leaf in self.tabs[idx].panels.leaves() {
+                self.exited_panels.remove(&leaf);
+            }
             self.tabs.remove(idx);
             if self.active_tab >= self.tabs.len() {
                 self.active_tab = self.tabs.len().saturating_sub(1);
@@ -1425,6 +1431,7 @@ impl AppState {
     }
 
     pub fn close_panel(&mut self, tab_id: TabId, panel: AccessibilityId) {
+        self.exited_panels.remove(&panel);
         if let Some(tab) = self.tabs.iter_mut().find(|t| t.id == tab_id)
             && let Some(new_root) = tab.panels.clone().remove_leaf(panel)
         {
@@ -1535,7 +1542,13 @@ impl AppState {
                         let text = handle.clipboard_content().unwrap_or_default();
                         let _ = Clipboard::set(text);
                     }
-                    _ = handle.closed().fuse() => break,
+                    _ = handle.closed().fuse() => {
+                        station
+                            .write_channel(AppChannel::Tabs)
+                            .exited_panels
+                            .insert(panel_id);
+                        break;
+                    }
                 }
             }
         });

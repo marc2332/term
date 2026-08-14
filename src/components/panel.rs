@@ -66,12 +66,13 @@ impl Component for Panel {
             _ => TerminalMouseButton::Left,
         };
 
-        let (is_active, has_multiple_panels) = {
+        let (is_active, has_multiple_panels, shell_exited) = {
             let state = radio.read();
             let tab = state.tabs.iter().find(|t| t.id == self.tab_id).unwrap();
             (
                 tab.active_panel == panel_id,
                 !matches!(tab.panels, PanelNode::Leaf(..)),
+                state.exited_panels.contains(&panel_id),
             )
         };
         let drop_hovered = *drop_hover.read();
@@ -266,6 +267,9 @@ impl Component for Panel {
                 rect()
                     .width(Size::fill())
                     .height(Size::flex(1.))
+                    .maybe(shell_exited, |el| {
+                        el.child(shell_exited_overlay(radio, tab_id, panel_id))
+                    })
                     .child(terminal)
             });
 
@@ -298,4 +302,60 @@ impl Component for Panel {
     fn render_key(&self) -> DiffKey {
         DiffKey::from(&self.panel_id.0)
     }
+}
+
+/// Dim scrim with a centered card, shown when the panel's shell has exited.
+fn shell_exited_overlay(
+    mut radio: Radio<AppState, AppChannel>,
+    tab_id: TabId,
+    panel_id: AccessibilityId,
+) -> Rect {
+    rect()
+        .position(Position::new_absolute().left(0.).top(0.))
+        .layer(Layer::Relative(1))
+        .expanded()
+        .center()
+        .corner_radius(6.)
+        .background(Color::from_argb(150, 5, 5, 5))
+        .child(
+            rect()
+                .vertical()
+                .cross_align(Alignment::Center)
+                .spacing(12.)
+                .padding((22., 30.))
+                .corner_radius(14.)
+                .background((24, 24, 24))
+                .border(Border::new().fill((70, 70, 70)).width(1.))
+                .shadow((0., 4., 18., 0., Color::from_argb(140, 0, 0, 0)))
+                .child(
+                    SvgViewer::new(lucide::unplug())
+                        .width(Size::px(28.))
+                        .height(Size::px(28.))
+                        .stroke((220, 220, 220)),
+                )
+                .child(
+                    label()
+                        .text("The shell exited")
+                        .font_size(16.)
+                        .color((235, 235, 235)),
+                )
+                .child(
+                    Button::new()
+                        .on_press(move |_| {
+                            let mut state = radio.write_channel(AppChannel::Tabs);
+                            let is_last_panel = state
+                                .tabs
+                                .iter()
+                                .find(|tab| tab.id == tab_id)
+                                .is_some_and(|tab| matches!(tab.panels, PanelNode::Leaf(..)));
+                            if is_last_panel {
+                                state.close_tab_by_id(tab_id);
+                            } else {
+                                state.close_panel(tab_id, panel_id);
+                            }
+                        })
+                        .color((230, 230, 230))
+                        .child(label().text("Close panel").font_size(13.)),
+                ),
+        )
 }

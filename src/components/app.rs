@@ -209,8 +209,12 @@ impl Component for App {
                 }
             })
             .child(app_backdrop())
-            .child(ContextMenuViewer::new())
-            .child(ModalHost)
+            .child(
+                rect()
+                    .layer(Layer::OverlayLevel(3))
+                    .child(ContextMenuViewer::new()),
+            )
+            .child(rect().layer(Layer::OverlayLevel(3)).child(ModalHost))
             .child(
                 rect()
                     .width(Size::fill())
