@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::time::Duration;
 
 use async_io::Timer;
@@ -26,6 +27,7 @@ pub struct App {
     pub font_family: Option<String>,
     pub shell: String,
     pub startup: Startup,
+    pub startup_dir: Option<PathBuf>,
 }
 
 impl Component for App {
@@ -34,6 +36,7 @@ impl Component for App {
         let font_family = self.font_family.clone();
         let shell = self.shell.clone();
         let startup = self.startup;
+        let startup_dir = self.startup_dir.clone();
 
         use_init_theme(|| {
             let mut theme = dark_theme();
@@ -101,14 +104,18 @@ impl Component for App {
         use_provide_context(move || AltHeld(alt_held));
 
         use_hook(move || {
-            match startup {
-                Startup::Fresh => AppState::create_context_tab(station),
-                Startup::RestoreLast => {
-                    if let Some(saved) = session::load_sessions().first() {
-                        AppState::restore_session(station, saved);
+            if let Some(dir) = startup_dir {
+                AppState::create_tab(station, None, None, Some(dir));
+            } else {
+                match startup {
+                    Startup::Fresh => AppState::create_context_tab(station),
+                    Startup::RestoreLast => {
+                        if let Some(saved) = session::load_sessions().first() {
+                            AppState::restore_session(station, saved);
+                        }
                     }
+                    Startup::Welcome => {}
                 }
-                Startup::Welcome => {}
             }
 
             // Autosave: persist the session whenever its content changed.

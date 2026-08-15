@@ -43,6 +43,9 @@ struct Cli {
     /// Enable performance overlay
     #[arg(long)]
     fps: bool,
+
+    /// Open the terminal in this directory
+    directory: Option<std::path::PathBuf>,
 }
 
 fn main() {
@@ -52,12 +55,21 @@ fn main() {
     let cli = Cli::parse();
     let config = Config::load();
 
+    let startup_dir = cli.directory.filter(|dir| {
+        let exists = dir.is_dir();
+        if !exists {
+            eprintln!("Ignoring {}: not an existing directory", dir.display());
+        }
+        exists
+    });
+
     let mut launch_config = LaunchConfig::new().with_window(
         WindowConfig::new(move || App {
             font_size: config.font_size,
             font_family: config.font_family.clone(),
             shell: config.shell.clone(),
             startup: config.startup,
+            startup_dir: startup_dir.clone(),
         })
         .with_title("marcterm")
         .with_decorations(false)
