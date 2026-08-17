@@ -86,13 +86,14 @@ fn sidebar_item_element(mut radio: AppRadio, item: &SidebarItem) -> Element {
         SidebarItem::Header(header) => {
             let group_id = header.id;
             let name = header.name.clone();
-            let zone = DragZone::new(DragPayload::Project(group_id), header.clone())
+            let zone = DragZone::new(DragPayload::Project(group_id))
+                .child(header.clone())
                 .show_while_dragging(false)
                 .drag_element(drag_chip(
                     Some(SvgViewer::new(lucide::folder_git_2())),
                     name,
                 ));
-            DropZone::new(zone, move |payload: DragPayload| match payload {
+            DropZone::new(move |payload: DragPayload| match payload {
                 DragPayload::Tab(dragged_id) => {
                     radio
                         .write_channel(AppChannel::Tabs)
@@ -107,6 +108,7 @@ fn sidebar_item_element(mut radio: AppRadio, item: &SidebarItem) -> Element {
                 | DragPayload::WorktreeGroup(..)
                 | DragPayload::TabGroup(..) => {}
             })
+            .child(zone)
             .into_element()
         }
         SidebarItem::Group(group) => {
@@ -120,14 +122,15 @@ fn sidebar_item_element(mut radio: AppRadio, item: &SidebarItem) -> Element {
                     DragPayload::TabGroup(container, group.name.clone())
                 }
             };
-            let inner: Element = DragZone::new(payload, group.clone())
+            let inner: Element = DragZone::new(payload)
+                .child(group.clone())
                 .show_while_dragging(false)
                 .drag_element(drag_chip(
                     Some(SvgViewer::new(lucide::folder())),
                     group.name.clone(),
                 ))
                 .into_element();
-            let zone = DropZone::new(inner, move |payload: DragPayload| {
+            let zone = DropZone::new(move |payload: DragPayload| {
                 let mut state = radio.write_channel(AppChannel::Tabs);
                 match (target, payload) {
                     (
@@ -163,7 +166,8 @@ fn sidebar_item_element(mut radio: AppRadio, item: &SidebarItem) -> Element {
                     }
                     _ => {}
                 }
-            });
+            })
+            .child(inner);
             animated_portal(group.identity())
                 .key(group.identity())
                 .width(Size::fill())
@@ -179,16 +183,14 @@ fn sidebar_item_element(mut radio: AppRadio, item: &SidebarItem) -> Element {
             .height(Size::px(1.))
             .background((70, 70, 70))
             .into_element(),
-        SidebarItem::LooseDrop => DropZone::new(
-            rect().width(Size::fill()).height(Size::fill()),
-            move |payload: DragPayload| {
-                if let DragPayload::Tab(dragged_id) = payload {
-                    radio
-                        .write_channel(AppChannel::Tabs)
-                        .reparent_tab(dragged_id, None);
-                }
-            },
-        )
+        SidebarItem::LooseDrop => DropZone::new(move |payload: DragPayload| {
+            if let DragPayload::Tab(dragged_id) = payload {
+                radio
+                    .write_channel(AppChannel::Tabs)
+                    .reparent_tab(dragged_id, None);
+            }
+        })
+        .child(rect().width(Size::fill()).height(Size::fill()))
         .into_element(),
     }
 }
@@ -565,29 +567,30 @@ fn draggable_tab(mut radio: AppRadio, tab: TabButton) -> Element {
     let index = tab.index;
     let drag_title = tab.title.clone();
     let tooltip = tab.title.clone();
-    let zone = DropZone::new(
-        DragZone::new(DragPayload::Tab(tab.tab_id), tab)
+    let zone = DropZone::new(move |payload: DragPayload| match payload {
+        DragPayload::Tab(dragged_id) => {
+            radio
+                .write_channel(AppChannel::Tabs)
+                .move_tab(dragged_id, drop_tab_id);
+        }
+        DragPayload::TabGroup(dragged_container, dragged_name) => {
+            radio.write_channel(AppChannel::Tabs).move_tab_group(
+                dragged_container,
+                &dragged_name,
+                drop_tab_id,
+            );
+        }
+        _ => {}
+    })
+    .child(
+        DragZone::new(DragPayload::Tab(tab.tab_id))
+            .child(tab)
             .show_while_dragging(false)
             .drag_element(
                 animated_portal(drop_tab_id)
                     .animation_dependency(index)
                     .child(drag_chip(None, drag_title)),
             ),
-        move |payload: DragPayload| match payload {
-            DragPayload::Tab(dragged_id) => {
-                radio
-                    .write_channel(AppChannel::Tabs)
-                    .move_tab(dragged_id, drop_tab_id);
-            }
-            DragPayload::TabGroup(dragged_container, dragged_name) => {
-                radio.write_channel(AppChannel::Tabs).move_tab_group(
-                    dragged_container,
-                    &dragged_name,
-                    drop_tab_id,
-                );
-            }
-            _ => {}
-        },
     );
     animated_portal(drop_tab_id)
         .key(&("tab", drop_tab_id.0))
@@ -614,7 +617,8 @@ fn draggable_worktree_row(mut radio: AppRadio, row: WorktreeRow) -> Element {
         row.into_element()
     } else {
         let drag_title = name.clone();
-        DragZone::new(DragPayload::Worktree(project_id, name), row)
+        DragZone::new(DragPayload::Worktree(project_id, name))
+            .child(row)
             .show_while_dragging(false)
             .drag_element(
                 animated_portal((project_id, drag_title.clone()))
@@ -627,7 +631,7 @@ fn draggable_worktree_row(mut radio: AppRadio, row: WorktreeRow) -> Element {
             .into_element()
     };
 
-    let zone = DropZone::new(inner, move |payload: DragPayload| match payload {
+    let zone = DropZone::new(move |payload: DragPayload| match payload {
         DragPayload::Worktree(dragged_project, dragged_name) if dragged_project == project_id => {
             radio.write_channel(AppChannel::Tabs).reorder_worktree(
                 project_id,
@@ -645,7 +649,8 @@ fn draggable_worktree_row(mut radio: AppRadio, row: WorktreeRow) -> Element {
             );
         }
         _ => {}
-    });
+    })
+    .child(inner);
     animated_portal((project_id, row_key.clone()))
         .key(&("worktree", project_id.0, row_key))
         .width(Size::fill())

@@ -273,30 +273,31 @@ impl Component for Panel {
                     .child(terminal)
             });
 
-        DragZone::new(
-            PanelDrag(panel_id),
-            DropZone::new(panel, move |drag: PanelDrag| {
-                radio
-                    .write_channel(AppChannel::Tabs)
-                    .swap_panels(tab_id, drag.0, panel_id);
-            })
-            .on_drag_over(move |over: bool| drop_hover.set_if_modified(over)),
-        )
-        .drag_threshold(if alt_held { 4. } else { f64::INFINITY })
-        .maybe(alt_held, |el| {
-            el.drag_element(
-                drag_preview(
-                    label()
-                        .text(title)
-                        .font_size(13.)
-                        .color((230, 230, 230))
-                        .max_lines(1),
-                )
-                .width(Size::auto())
-                .rounded_full()
-                .padding((6., 14.)),
+        DragZone::new(PanelDrag(panel_id))
+            .child(
+                DropZone::new(move |drag: PanelDrag| {
+                    radio
+                        .write_channel(AppChannel::Tabs)
+                        .swap_panels(tab_id, drag.0, panel_id);
+                })
+                .on_drag_over(move |over: bool| drop_hover.set_if_modified(over))
+                .child(panel),
             )
-        })
+            .drag_threshold(if alt_held { 4. } else { f64::INFINITY })
+            .maybe(alt_held, |el| {
+                el.drag_element(
+                    drag_preview(
+                        label()
+                            .text(title)
+                            .font_size(13.)
+                            .color((230, 230, 230))
+                            .max_lines(1),
+                    )
+                    .width(Size::auto())
+                    .rounded_full()
+                    .padding((6., 14.)),
+                )
+            })
     }
 
     fn render_key(&self) -> DiffKey {

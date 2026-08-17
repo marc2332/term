@@ -17,6 +17,8 @@ impl Component for ModalHost {
     fn render(&self) -> impl IntoElement {
         let mut radio = use_radio(AppChannel::Tabs);
         let modal = radio.read().modal.clone();
+        let show_about = matches!(&modal, Some(Modal::About));
+        let show_add = matches!(&modal, Some(Modal::AddProject));
         let project_name = |id: ProjectId| {
             radio
                 .read()
@@ -24,11 +26,8 @@ impl Component for ModalHost {
                 .map(|p| p.name.clone())
                 .unwrap_or_default()
         };
-        match modal {
-            None => rect().into_element(),
-            Some(Modal::About) => AboutModal.into_element(),
-            Some(Modal::AddProject) => AddProjectModal.into_element(),
-            Some(Modal::ConfirmArchiveAll(id)) => ConfirmModal {
+        let confirm = match modal {
+            Some(Modal::ConfirmArchiveAll(id)) => Some(ConfirmParams {
                 title: "Archive all worktrees",
                 message: format!(
                     "Archive all worktrees in {}? Their open tabs will be closed.",
@@ -41,9 +40,8 @@ impl Component for ModalHost {
                         .archive_all_worktrees(id);
                 })
                 .into(),
-            }
-            .into_element(),
-            Some(Modal::ConfirmUnarchiveAll(id)) => ConfirmModal {
+            }),
+            Some(Modal::ConfirmUnarchiveAll(id)) => Some(ConfirmParams {
                 title: "Unarchive all worktrees",
                 message: format!("Unarchive all archived worktrees in {}?", project_name(id)),
                 confirm: "Unarchive",
@@ -53,9 +51,8 @@ impl Component for ModalHost {
                         .set_archived(id, vec![]);
                 })
                 .into(),
-            }
-            .into_element(),
-            Some(Modal::ConfirmCloseProject(id)) => ConfirmModal {
+            }),
+            Some(Modal::ConfirmCloseProject(id)) => Some(ConfirmParams {
                 title: "Close project",
                 message: format!(
                     "Close {} and all of its tabs? Nothing on disk is affected.",
@@ -66,14 +63,20 @@ impl Component for ModalHost {
                     radio.write_channel(AppChannel::Tabs).remove_project(id);
                 })
                 .into(),
-            }
-            .into_element(),
-        }
+            }),
+            _ => None,
+        };
+        rect()
+            .child(AboutModal { show: show_about })
+            .child(AddProjectModal { show: show_add })
+            .child(ConfirmModal { params: confirm })
     }
 }
 
 #[derive(PartialEq, Clone, Copy)]
-struct AboutModal;
+struct AboutModal {
+    show: bool,
+}
 
 impl Component for AboutModal {
     fn render(&self) -> impl IntoElement {
@@ -82,7 +85,7 @@ impl Component for AboutModal {
         Popup::new()
             .width(Size::px(300.))
             .on_close_request(move |_| close_modal(radio))
-            .child(
+            .maybe_child(self.show.then(|| {
                 PopupContent::new().child(
                     rect()
                         .width(Size::fill())
@@ -128,9 +131,9 @@ impl Component for AboutModal {
                                         .font_size(13.),
                                 ),
                         ),
-                ),
-            )
-            .child(
+                )
+            }))
+            .maybe_child(self.show.then(|| {
                 PopupButtons::new().child(
                     Button::new()
                         .expanded()
@@ -138,8 +141,8 @@ impl Component for AboutModal {
                         .rounded_full()
                         .on_press(move |_| close_modal(radio))
                         .child("Accept"),
-                ),
-            )
+                )
+            }))
     }
 }
 
@@ -148,30 +151,40 @@ fn link(text: &'static str, url: &'static str) -> Link {
 }
 
 #[derive(PartialEq, Clone)]
-struct ConfirmModal {
+struct ConfirmParams {
     title: &'static str,
     message: String,
     confirm: &'static str,
     on_confirm: EventHandler<()>,
 }
 
+#[derive(PartialEq, Clone)]
+struct ConfirmModal {
+    params: Option<ConfirmParams>,
+}
+
 impl ComponentOwned for ConfirmModal {
     fn render(self) -> impl IntoElement {
         let radio = use_radio(AppChannel::Tabs);
-        let on_confirm = self.on_confirm;
+        let params = self.params;
         Popup::new()
             .on_close_request(move |_| close_modal(radio))
-            .child(PopupTitle::new(self.title.to_string()))
-            .child(
+            .maybe_child(
+                params
+                    .as_ref()
+                    .map(|params| PopupTitle::new(params.title.to_string())),
+            )
+            .maybe_child(params.as_ref().map(|params| {
                 PopupContent::new().child(
                     label()
-                        .text(self.message)
+                        .text(params.message.clone())
                         .font_size(13.)
                         .color((150, 150, 150))
                         .max_lines(3),
-                ),
-            )
-            .child(
+                )
+            }))
+            .maybe_child(params.map(|params| {
+                let on_confirm = params.on_confirm;
                 PopupButtons::new()
                     .child(
                         Button::new()
@@ -189,9 +202,9 @@ impl ComponentOwned for ConfirmModal {
                                 on_confirm.call(());
                                 close_modal(radio);
                             })
-                            .child(self.confirm),
-                    ),
-            )
+                            .child(params.confirm),
+                    )
+            }))
     }
 }
 
@@ -223,7 +236,9 @@ fn expand_home(path: &str) -> PathBuf {
 }
 
 #[derive(PartialEq, Clone, Copy)]
-struct AddProjectModal;
+struct AddProjectModal {
+    show: bool,
+}
 
 impl Component for AddProjectModal {
     fn render(&self) -> impl IntoElement {
@@ -258,8 +273,11 @@ impl Component for AddProjectModal {
 
         Popup::new()
             .on_close_request(move |_| close_modal(radio))
-            .child(PopupTitle::new("Add Project".to_string()))
-            .child(
+            .maybe_child(
+                self.show
+                    .then(|| PopupTitle::new("Add Project".to_string())),
+            )
+            .maybe_child(self.show.then(|| {
                 PopupContent::new()
                     .child(
                         rect()
@@ -302,7 +320,7 @@ impl Component for AddProjectModal {
                                     ),
                             ),
                     )
-                    .maybe_child(error.read().as_deref().map(error_label)),
-            )
+                    .maybe_child(error.read().as_deref().map(error_label))
+            }))
     }
 }
