@@ -27,6 +27,9 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="0.4.3" date="2026-08-17">
+      <description><p>Exited shell overlays, opt-in directory CLI argument, animated modal popups.</p></description>
+    </release>
     <release version="0.4.2" date="2026-08-05">
       <description><p>Collapsible worktree and tab groups in the sidebar, panel styling refresh, context menus on press.</p></description>
     </release>
