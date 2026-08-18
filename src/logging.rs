@@ -1,11 +1,8 @@
-use std::{
-    fs::File,
-    sync::Mutex,
-};
+use std::{fs::File, sync::Mutex};
 
 use tracing_subscriber::EnvFilter;
 
-use crate::session::state_dir;
+use crate::session::StateDir;
 
 /// Print logs to the terminal on debug builds, write them to the state dir on release ones.
 pub fn init() {
@@ -18,7 +15,7 @@ pub fn init() {
         return;
     }
 
-    let dir = state_dir();
+    let dir = StateDir::path();
     if std::fs::create_dir_all(&dir).is_err() {
         return;
     }

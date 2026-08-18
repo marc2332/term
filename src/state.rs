@@ -13,7 +13,7 @@ use futures::FutureExt;
 use serde::{Deserialize, Serialize};
 
 use crate::git::{self, ProjectInfo, Worktree};
-use crate::session::{self, PanelLayout, Session, SessionTab};
+use crate::session::{PanelLayout, ProjectPrefs, RecentProject, Session, SessionTab, Timestamp};
 
 #[derive(PartialEq)]
 pub struct PanelTask(TaskHandle);
@@ -625,7 +625,7 @@ impl AppState {
             exited_panels: HashSet::new(),
             archived_filters: HashMap::new(),
             collapsed_tab_groups: HashSet::new(),
-            started_at: session::now_secs(),
+            started_at: Timestamp::now(),
         }
     }
 
@@ -645,18 +645,18 @@ impl AppState {
         let id = ProjectId::new();
         let mut main_seed = Worktree::placeholder(info.main.clone());
         main_seed.is_main = true;
-        let (archived, worktree_order, groups) = session::load_project_prefs(&info.root);
+        let prefs = ProjectPrefs::load(&info.root);
         self.projects.push(Project {
             id,
             name: info.name,
             root: info.root,
             main: info.main,
             worktrees: vec![main_seed],
-            archived,
-            worktree_order,
+            archived: prefs.archived,
+            worktree_order: prefs.order,
             collapsed: false,
             show_archived: false,
-            groups,
+            groups: prefs.groups,
         });
         id
     }
@@ -684,8 +684,7 @@ impl AppState {
         }
     }
 
-    /// Sort worktrees: groups first, then open with changes, then open, then the rest.
-    /// Within each bucket, fix before feat before chore, then most recent output first.
+    /// Sort worktrees by group, then changes, then open state, then branch kind and recent output.
     pub fn sort_worktrees(&mut self, id: ProjectId) {
         let Some(project) = self.project(id) else {
             return;
@@ -709,11 +708,10 @@ impl AppState {
         let order: Vec<String> = worktrees.into_iter().map(|wt| wt.name).collect();
         if let Some(project) = self.project_mut(id) {
             project.worktree_order = order;
-            session::save_worktree_order(&project.root, &project.worktree_order);
+            ProjectPrefs::save_order(&project.root, &project.worktree_order);
         }
     }
 
-    /// Move `dragged` to `target`'s position in the persisted sidebar order.
     /// Move a project to another project's position in the sidebar.
     pub fn move_project(&mut self, dragged: ProjectId, target: ProjectId) {
         if dragged == target {
@@ -756,7 +754,7 @@ impl AppState {
             group.worktrees.push(dragged.to_string());
         }
         project.groups.retain(|group| !group.worktrees.is_empty());
-        session::save_worktree_groups(&project.root, &project.groups);
+        ProjectPrefs::save_groups(&project.root, &project.groups);
         let mut names = project.ordered_worktree_names();
         let Some(from) = names.iter().position(|name| name == dragged) else {
             return;
@@ -773,14 +771,14 @@ impl AppState {
         };
         names.insert(destination, dragged.to_string());
         project.worktree_order = names;
-        session::save_worktree_order(&project.root, &project.worktree_order);
+        ProjectPrefs::save_order(&project.root, &project.worktree_order);
     }
 
     /// Replace a project's archived worktree list and persist it.
     pub fn set_archived(&mut self, id: ProjectId, archived: Vec<String>) {
         if let Some(project) = self.project_mut(id) {
             project.archived = archived;
-            session::save_archived(&project.root, &project.archived);
+            ProjectPrefs::save_archived(&project.root, &project.archived);
         }
     }
 
@@ -842,8 +840,7 @@ impl AppState {
         }
     }
 
-    /// File a tab into a group, placed right after the group's last member
-    /// so the sidebar position animates along with the membership change.
+    /// File a tab into a group, right after its last member so the move animates.
     pub fn append_tab_to_group(
         &mut self,
         tab_id: TabId,
@@ -925,7 +922,7 @@ impl AppState {
         if let Some(project) = self.project_mut(id) {
             mutate(project);
             project.groups.retain(|group| !group.worktrees.is_empty());
-            session::save_worktree_groups(&project.root, &project.groups);
+            ProjectPrefs::save_groups(&project.root, &project.groups);
         }
     }
 
@@ -990,7 +987,7 @@ impl AppState {
             .unwrap_or(names.len());
         names.splice(destination..destination, block);
         project.worktree_order = names;
-        session::save_worktree_order(&project.root, &project.worktree_order);
+        ProjectPrefs::save_order(&project.root, &project.worktree_order);
     }
 
     /// Move a whole group so it sits right before another group.
@@ -1076,8 +1073,7 @@ impl AppState {
         self.retain_tabs(|t| t.worktree.as_deref() != Some(path));
     }
 
-    /// The project's visible sidebar rows, in display order. Archived rows go
-    /// last, ordered by archive time (most recently archived first).
+    /// The project's visible sidebar rows, archived last and most recently archived first.
     pub fn worktree_entries(&self, project: &Project) -> Vec<WorktreeEntry> {
         let filter = if project.show_archived {
             self.archived_filters
@@ -1622,7 +1618,7 @@ impl AppState {
 
     /// Open (or switch to) a project and refresh its worktrees.
     pub fn open_project(mut station: AppStation, info: ProjectInfo) {
-        session::touch_recent_project(&info.root);
+        RecentProject::touch(&info.root);
         let main = info.main.clone();
         let (project_id, existing_tab) = {
             let mut state = station.write_channel(AppChannel::Tabs);
@@ -1643,8 +1639,7 @@ impl AppState {
         Self::refresh_worktrees(station, project_id, false);
     }
 
-    /// Refresh a project's worktrees in the background, writing only on change.
-    /// `forced` also covers archived rows and collapsed projects.
+    /// Refresh worktrees in the background, writing only on change, `forced` also covering hidden rows.
     pub fn refresh_worktrees(mut station: AppStation, project_id: ProjectId, forced: bool) {
         let Some((main, skip_diffs, skip_all)) = ({
             let state = station.peek();
@@ -1773,7 +1768,7 @@ impl AppState {
                     }
                 }
             }
-            session::touch_recent_projects(&opened_roots);
+            RecentProject::touch_many(&opened_roots);
             for tab in &loose_tabs {
                 Self::restore_tab(station, tab, None);
             }

@@ -12,19 +12,14 @@ const DIRECTIONS: [ResizeDirection; 8] = [
     ResizeDirection::SouthEast,
 ];
 
-/// Invisible bands along the window borders that drive a native resize.
-///
-/// Undecorated windows lose the resize borders the compositor would otherwise
-/// draw, so they are recreated here on top of everything else. Skipped while
-/// fullscreen, where the borders are not reachable anyway.
+/// Invisible bands that restore the native resize borders an undecorated window lacks.
 #[derive(PartialEq)]
 pub struct ResizeBands {
     /// How far into the window each band reaches. Corners use twice this.
     pub thickness: f32,
 }
 
-/// Whether the window borders sit flush with the screen, either fullscreen or
-/// maximized. Refreshed whenever the window is resized.
+/// Whether the window borders sit flush with the screen, refreshed on every resize.
 pub fn use_edge_to_edge() -> State<bool> {
     let mut edge_to_edge = use_state(|| false);
 

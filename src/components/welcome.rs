@@ -6,7 +6,7 @@ use freya::radio::*;
 use std::path::PathBuf;
 
 use crate::git;
-use crate::session::{self, Session};
+use crate::session::{RecentProject, Session, Timestamp};
 use crate::state::{AppChannel, AppState, Modal};
 
 #[derive(PartialEq, Clone, Copy)]
@@ -17,7 +17,7 @@ impl Component for Welcome {
         let mut radio = use_radio(AppChannel::Tabs);
         let station = use_radio_station::<AppState, AppChannel>();
         let recent = use_state(|| {
-            session::load_recent_projects()
+            RecentProject::load_all()
                 .into_iter()
                 .map(|p| {
                     let exists = git::project_exists(&p.root);
@@ -25,7 +25,7 @@ impl Component for Welcome {
                 })
                 .collect::<Vec<(PathBuf, bool)>>()
         });
-        let sessions = use_state(session::load_sessions);
+        let sessions = use_state(Session::load_all);
 
         rect().expanded().center().child(
             rect()
@@ -178,7 +178,7 @@ impl Component for RecentProjectRow {
             let root = root.clone();
             move |e: Event<PressEventData>| {
                 e.stop_propagation();
-                session::remove_recent_project(&root);
+                RecentProject::remove(&root);
                 recent.write().retain(|(r, _)| r != &root);
             }
         };
@@ -263,7 +263,7 @@ impl Component for SessionRow {
 
         let remove = move |e: Event<PressEventData>| {
             e.stop_propagation();
-            session::remove_session(started_at);
+            Session::remove(started_at);
             sessions.write().retain(|s| s.started_at != started_at);
         };
 
@@ -300,7 +300,7 @@ impl Component for SessionRow {
                     )
                     .child(
                         label()
-                            .text(session::time_ago(self.session.saved_at))
+                            .text(Timestamp::ago(self.session.saved_at))
                             .font_size(12.)
                             .color((120, 120, 120)),
                     )

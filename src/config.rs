@@ -47,8 +47,7 @@ fn default_shell() -> String {
     shell.unwrap_or_else(|| "bash".to_string())
 }
 
-/// The host's login shell of record. The sandbox's own `$SHELL` and passwd
-/// entry both misreport `/bin/sh`.
+/// The host's login shell of record, as the sandbox misreports `/bin/sh` in `$SHELL` and passwd.
 fn host_login_shell() -> Option<String> {
     let user = std::env::var("USER").ok()?;
     let output = std::process::Command::new("flatpak-spawn")

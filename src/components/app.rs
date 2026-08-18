@@ -16,7 +16,7 @@ use crate::{
         welcome::{Welcome, remove_button},
     },
     config::Startup,
-    session,
+    session::Session,
     shortcuts::{self, Shortcut},
     state::{AppChannel, AppState, Axis, Modal},
 };
@@ -110,7 +110,7 @@ impl Component for App {
                 match startup {
                     Startup::Fresh => AppState::create_context_tab(station),
                     Startup::RestoreLast => {
-                        if let Some(saved) = session::load_sessions().first() {
+                        if let Some(saved) = Session::load_all().first() {
                             AppState::restore_session(station, saved);
                         }
                     }
@@ -118,17 +118,17 @@ impl Component for App {
                 }
             }
 
-            // Autosave: persist the session whenever its content changed.
+            // Persist the session whenever its content changed.
             spawn(async move {
-                let mut last: Option<session::Session> = None;
+                let mut last: Option<Session> = None;
                 loop {
                     Timer::after(Duration::from_secs(3)).await;
-                    let snapshot = session::capture(&station.peek());
+                    let snapshot = Session::capture(&station.peek());
                     if snapshot.is_empty() {
                         continue;
                     }
                     if last.as_ref().is_none_or(|l| !l.content_eq(&snapshot)) {
-                        session::update_current_session(&snapshot);
+                        snapshot.save_as_current();
                         last = Some(snapshot);
                     }
                 }
