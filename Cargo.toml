@@ -30,6 +30,8 @@ async-io = "2"
 open = "5"
 rfd = "0.17"
 libc = "0.2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 xcursor = "0.3"

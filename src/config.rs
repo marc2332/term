@@ -117,18 +117,18 @@ impl Config {
         let path = Self::path();
         let contents = match std::fs::read_to_string(&path) {
             Ok(c) => {
-                eprintln!("Loaded config from {}", path.display());
+                tracing::info!("Loaded config from {}", path.display());
                 c
             }
             Err(e) => {
-                eprintln!("Could not read config from {}: {e}", path.display());
+                tracing::warn!("Could not read config from {}: {e}", path.display());
                 return Self::default();
             }
         };
         match toml::from_str(&contents) {
             Ok(config) => config,
             Err(e) => {
-                eprintln!("Failed to parse {}: {e}", path.display());
+                tracing::error!("Failed to parse {}: {e}", path.display());
                 Self::default()
             }
         }

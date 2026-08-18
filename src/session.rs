@@ -120,7 +120,7 @@ pub fn time_ago(secs: u64) -> String {
 }
 
 /// Machine-state dir, targeting the host's ~/.local/state inside Flatpak.
-fn state_dir() -> PathBuf {
+pub fn state_dir() -> PathBuf {
     if git::is_flatpak() {
         let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
         return PathBuf::from(home).join(".local/state/marcterm");

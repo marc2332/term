@@ -1,6 +1,7 @@
 mod components;
 mod config;
 mod git;
+mod logging;
 mod session;
 mod shortcuts;
 mod state;
@@ -49,6 +50,8 @@ struct Cli {
 }
 
 fn main() {
+    logging::init();
+
     #[cfg(target_os = "linux")]
     fix_flatpak_cursor_theme();
 
@@ -58,7 +61,7 @@ fn main() {
     let startup_dir = cli.directory.filter(|dir| {
         let exists = dir.is_dir();
         if !exists {
-            eprintln!("Ignoring {}: not an existing directory", dir.display());
+            tracing::warn!("Ignoring {}: not an existing directory", dir.display());
         }
         exists
     });
