@@ -27,6 +27,9 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="0.4.4" date="2026-08-19">
+      <description><p>Keep PTYs alive on transient read errors.</p></description>
+    </release>
     <release version="0.4.3" date="2026-08-17">
       <description><p>Exited shell overlays, opt-in directory CLI argument, animated modal popups.</p></description>
     </release>
