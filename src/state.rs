@@ -195,6 +195,11 @@ impl PanelNode {
             if let Some(ref dir) = cwd {
                 cmd.arg(format!("--directory={}", dir.display()));
             }
+            // A scope per shell keeps it out of the session helper cgroup,
+            // so an OOM kill there cannot take every panel down at once.
+            if git::host_has_systemd_run() {
+                cmd.args(["systemd-run", "--user", "--scope", "--quiet", "--collect"]);
+            }
             cmd.arg(shell);
             // https://github.com/flatpak/flatpak/issues/3697
             cmd.set_controlling_tty(false);

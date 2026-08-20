@@ -52,6 +52,11 @@ pub fn is_flatpak() -> bool {
     std::env::var("FLATPAK_ID").is_ok()
 }
 
+/// Whether the host can wrap spawned shells in transient systemd scopes.
+pub fn host_has_systemd_run() -> bool {
+    run("systemd-run", &["--version"], Path::new("/")).is_ok()
+}
+
 fn host_command(program: &str, cwd: &Path) -> Command {
     if is_flatpak() {
         let mut cmd = Command::new("flatpak-spawn");
