@@ -607,7 +607,7 @@ pub struct AppState {
     pub notice: Option<String>,
     /// Panels whose shell process ended on its own (not persisted).
     pub exited_panels: HashSet<AccessibilityId>,
-    /// Per-project name filter for the archived worktrees list (not persisted).
+    /// Per-project name filter for the worktrees list, active and archived (not persisted).
     pub archived_filters: HashMap<ProjectId, String>,
     /// Collapsed tab groups per container, `None` is the loose section.
     pub collapsed_tab_groups: HashSet<(Option<ProjectId>, String)>,
@@ -1089,9 +1089,8 @@ impl AppState {
             String::new()
         };
         let hidden = |archived: bool, name: &str| {
-            archived
-                && (!project.show_archived
-                    || (!filter.is_empty() && !name.to_lowercase().contains(&filter)))
+            (archived && !project.show_archived)
+                || (!filter.is_empty() && !name.to_lowercase().contains(&filter))
         };
         let mut entries: Vec<WorktreeEntry> = Vec::new();
         let mut archived_entries: Vec<WorktreeEntry> = Vec::new();

@@ -310,6 +310,11 @@ impl Component for TabBar {
                     })
                 };
 
+                if project.show_archived && has_archived && !state.sidebar_collapsed {
+                    items.push(SidebarItem::ArchivedFilter(ArchivedFilterRow {
+                        project_id: project.id,
+                    }));
+                }
                 let mut rows: Vec<WorktreeEntry> = Vec::new();
                 let mut archived_rows: Vec<WorktreeEntry> = Vec::new();
                 for entry in state.worktree_entries(project) {
@@ -357,11 +362,6 @@ impl Component for TabBar {
                         }
                         row_index += 1;
                     }
-                }
-                if project.show_archived && has_archived && !state.sidebar_collapsed {
-                    items.push(SidebarItem::ArchivedFilter(ArchivedFilterRow {
-                        project_id: project.id,
-                    }));
                 }
                 for entry in archived_rows {
                     items.push(worktree_row(entry, row_index, false));
@@ -1441,7 +1441,7 @@ impl Component for GroupRow {
     }
 }
 
-/// Transparent name filter shown above a project's archived worktrees.
+/// Transparent name filter for all of a project's worktrees, shown at the top of the list.
 #[derive(PartialEq, Clone)]
 struct ArchivedFilterRow {
     project_id: ProjectId,
@@ -1465,7 +1465,7 @@ impl Component for ArchivedFilterRow {
                 Input::new(value)
                     .flat()
                     .width(Size::fill())
-                    .placeholder("Filter archived")
+                    .placeholder("Filter worktrees")
                     .background(Color::TRANSPARENT)
                     .focus_background(Color::TRANSPARENT)
                     .border_fill(Color::TRANSPARENT)
