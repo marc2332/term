@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use async_io::Timer;
+use freya::borderless::use_maximized;
 use freya::prelude::*;
 use freya::radio::*;
 
@@ -9,7 +10,6 @@ use crate::{
     components::{
         modals::ModalHost,
         panel::AltHeld,
-        resizing::{ResizeBands, use_edge_to_edge},
         tab_bar::TabBar,
         tab_content::TabContent,
         titlebar::Titlebar,
@@ -69,9 +69,10 @@ impl Component for App {
                     hover_background: Preference::Specific(Color::from_argb(120, 80, 78, 86)),
                     select_background: Preference::Specific(Color::from_argb(120, 80, 78, 86)),
                     border_fill: Preference::Specific(Color::TRANSPARENT),
-                    select_border_fill: Preference::Reference("border_focus"),
+                    focus_border_fill: Preference::Reference("border_focus"),
                     corner_radius: Preference::Specific(CornerRadius::new_all(6.)),
                     color: Preference::Specific(Color::from_rgb(225, 225, 225)),
+                    select_color: Preference::Specific(Color::from_rgb(225, 225, 225)),
                 },
             );
             theme.set(
@@ -147,7 +148,7 @@ impl Component for App {
             });
         });
 
-        let edge_to_edge = use_edge_to_edge();
+        let maximized = use_maximized();
 
         let (show_welcome, notice) = {
             let state = radio.read();
@@ -161,7 +162,7 @@ impl Component for App {
             .expanded()
             .background((38, 38, 38))
             .color((220, 220, 220))
-            .corner_radius(CornerRadius::new_all(if edge_to_edge() { 0. } else { 12. }))
+            .corner_radius(CornerRadius::new_all(if maximized() { 0. } else { 12. }))
             .overflow(Overflow::Clip)
             .direction(Direction::Vertical)
             .on_global_key_down(move |e: Event<KeyboardEventData>| {
@@ -284,7 +285,6 @@ impl Component for App {
                         })),
                 )
             })
-            .child(ResizeBands { thickness: 6. })
     }
 }
 

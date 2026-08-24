@@ -9,6 +9,7 @@ mod state;
 use clap::Parser;
 use components::app::App;
 use config::Config;
+use freya::borderless::BorderlessPlugin;
 use freya::prelude::*;
 
 /// Fall back to Adwaita when the host cursor theme isn't reachable in Flatpak.
@@ -66,23 +67,25 @@ fn main() {
         exists
     });
 
-    let mut launch_config = LaunchConfig::new().with_window(
-        WindowConfig::new(move || App {
-            font_size: config.font_size,
-            font_family: config.font_family.clone(),
-            shell: config.shell.clone(),
-            startup: config.startup,
-            startup_dir: startup_dir.clone(),
-        })
-        .with_title("marcterm")
-        .with_decorations(false)
-        .with_transparency(true)
-        .with_background(Color::TRANSPARENT)
-        .with_app_id("io.marc.term")
-        .with_size(1024., 768.)
-        .with_min_size(400., 250.)
-        .with_icon(LaunchConfig::window_icon(include_bytes!("../icon.png"))),
-    );
+    let mut launch_config = LaunchConfig::new()
+        .with_plugin(BorderlessPlugin::new())
+        .with_window(
+            WindowConfig::new(move || App {
+                font_size: config.font_size,
+                font_family: config.font_family.clone(),
+                shell: config.shell.clone(),
+                startup: config.startup,
+                startup_dir: startup_dir.clone(),
+            })
+            .with_title("marcterm")
+            .with_decorations(false)
+            .with_transparency(true)
+            .with_background(Color::TRANSPARENT)
+            .with_app_id("io.marc.term")
+            .with_size(1024., 768.)
+            .with_min_size(400., 250.)
+            .with_icon(LaunchConfig::window_icon(include_bytes!("../icon.png"))),
+        );
 
     if cli.fps {
         launch_config = launch_config

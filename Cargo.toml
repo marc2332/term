@@ -12,14 +12,15 @@ name = "marcterm"
 path = "src/main.rs"
 
 [dependencies]
-freya = { git = "https://github.com/marc2332/freya", branch = "fix/dont-close-terminal-on-read-errors", features = [
+freya = { version = "0.5.0-rc.4", features = [
   "terminal",
   "radio",
   "material-design",
   "icons-lucide",
   "router",
+  "borderless",
 ] }
-freya-performance-plugin = { git = "https://github.com/marc2332/freya", branch = "fix/dont-close-terminal-on-read-errors" }
+freya-performance-plugin = "0.5.0-rc.4"
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

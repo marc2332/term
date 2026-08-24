@@ -136,14 +136,9 @@ impl Component for DragHandle {
             .corner_radius(CornerRadius::new_all(radius))
             .background(pill_fill(hovering()))
             .center()
-            .on_pointer_enter(move |_| {
-                hovering.set(true);
-                Cursor::set(CursorIcon::Grab);
-            })
-            .on_pointer_leave(move |_| {
-                hovering.set(false);
-                Cursor::set(CursorIcon::Default);
-            })
+            .cursor(CursorIcon::Grab)
+            .on_pointer_enter(move |_| hovering.set(true))
+            .on_pointer_leave(move |_| hovering.set(false))
             .child(
                 SvgViewer::new(lucide::grip_horizontal())
                     .width(Size::px(15.))
