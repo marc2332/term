@@ -32,6 +32,16 @@ impl Component for TabContent {
                     &tab.panels.leaves(),
                 ))
                 .into_element()
+        } else if state.restoring {
+            rect()
+                .expanded()
+                .center()
+                .child(
+                    CircularLoader::new()
+                        .size(24.)
+                        .primary_color((150, 150, 150)),
+                )
+                .into_element()
         } else {
             rect().expanded().into_element()
         }

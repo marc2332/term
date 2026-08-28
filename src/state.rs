@@ -613,6 +613,8 @@ pub struct AppState {
     pub collapsed_tab_groups: HashSet<(Option<ProjectId>, String)>,
     /// Identifies this run in the sessions ring.
     pub started_at: u64,
+    /// A saved session is being restored, before any tab exists to show.
+    pub restoring: bool,
 }
 
 impl AppState {
@@ -631,6 +633,7 @@ impl AppState {
             archived_filters: HashMap::new(),
             collapsed_tab_groups: HashSet::new(),
             started_at: Timestamp::now(),
+            restoring: false,
         }
     }
 
@@ -1724,7 +1727,11 @@ impl AppState {
     /// Reopen a saved session's projects and tabs, detecting projects off the UI thread.
     pub fn restore_session(mut station: AppStation, saved: &Session) {
         // Autosave updates the restored session entry in place.
-        station.write_channel(AppChannel::Tabs).started_at = saved.started_at;
+        {
+            let mut state = station.write_channel(AppChannel::Tabs);
+            state.started_at = saved.started_at;
+            state.restoring = true;
+        }
         let saved = saved.without_inactive_worktrees();
         let saved_projects = saved.projects;
         let loose_tabs = saved.loose_tabs;
@@ -1787,6 +1794,7 @@ impl AppState {
                     if skipped == 1 { "" } else { "s" }
                 ));
             }
+            state.restoring = false;
         });
     }
 }
