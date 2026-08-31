@@ -45,8 +45,7 @@ impl Component for Titlebar {
 
         let toggle_maximize = move |_| {
             Platform::get().with_window(None, |window| {
-                let is_maximized = window.is_maximized();
-                window.set_maximized(!is_maximized);
+                window.set_maximized(!window.is_maximized());
             });
         };
 

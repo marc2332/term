@@ -90,10 +90,6 @@ fn run(program: &str, args: &[&str], cwd: &Path) -> Result<String> {
     Ok(String::from_utf8_lossy(&out.stdout).into_owned())
 }
 
-fn git(args: &[&str], cwd: &Path) -> Result<String> {
-    run("git", args, cwd)
-}
-
 pub fn dir_name(path: &Path) -> String {
     path.file_name()
         .map(|n| n.to_string_lossy().into_owned())
@@ -102,7 +98,7 @@ pub fn dir_name(path: &Path) -> String {
 
 /// Entries reported by git, main worktree first (git's guaranteed order).
 fn worktree_entries(cwd: &Path) -> Result<Vec<Worktree>> {
-    let out = git(&["worktree", "list", "--porcelain"], cwd)?;
+    let out = run("git", &["worktree", "list", "--porcelain"], cwd)?;
     let mut worktrees: Vec<Worktree> = out.split("\n\n").filter_map(parse_worktree).collect();
     if let Some(first) = worktrees.first_mut() {
         first.is_main = true;
@@ -148,9 +144,9 @@ pub fn list_worktrees(
     skip_all_diffs: bool,
 ) -> Result<Vec<Worktree>> {
     let mut worktrees = worktree_entries(main)?;
-    for wt in &mut worktrees {
-        if !(skip_all_diffs || skip_diffs.contains(&wt.name)) {
-            wt.diff = Some(diff_stats(&wt.path));
+    for worktree in &mut worktrees {
+        if !(skip_all_diffs || skip_diffs.contains(&worktree.name)) {
+            worktree.diff = Some(diff_stats(&worktree.path));
         }
     }
     Ok(worktrees)
@@ -158,7 +154,7 @@ pub fn list_worktrees(
 
 /// Lines added/removed against HEAD (staged + unstaged, binary files ignored).
 pub fn diff_stats(worktree: &Path) -> DiffStats {
-    let Ok(out) = git(&["diff", "HEAD", "--numstat"], worktree) else {
+    let Ok(out) = run("git", &["diff", "HEAD", "--numstat"], worktree) else {
         return DiffStats::default();
     };
     let mut stats = DiffStats::default();

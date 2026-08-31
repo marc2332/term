@@ -6,9 +6,7 @@ use freya::radio::*;
 
 use crate::config::Config;
 use crate::git;
-use crate::state::{AppChannel, AppState, Modal, ProjectId};
-
-type AppRadio = Radio<AppState, AppChannel>;
+use crate::state::{AppChannel, AppRadio, AppState, Modal, ProjectId};
 
 #[derive(PartialEq, Clone, Copy)]
 pub struct ModalHost;
@@ -214,15 +212,6 @@ fn close_modal(mut radio: AppRadio) {
     state.focus_active_panel();
 }
 
-fn error_label(error: &str) -> Element {
-    label()
-        .text(error.to_string())
-        .font_size(13.)
-        .color((235, 100, 100))
-        .max_lines(3)
-        .into_element()
-}
-
 fn expand_home(path: &str) -> PathBuf {
     if path == "~" {
         return dirs::home_dir().unwrap_or_else(|| PathBuf::from("~"));
@@ -320,7 +309,13 @@ impl Component for AddProjectModal {
                                     ),
                             ),
                     )
-                    .maybe_child(error.read().as_deref().map(error_label))
+                    .maybe_child(error.read().as_deref().map(|error| {
+                        label()
+                            .text(error.to_string())
+                            .font_size(13.)
+                            .color((235, 100, 100))
+                            .max_lines(3)
+                    }))
             }))
     }
 }

@@ -58,6 +58,7 @@ impl StateDir {
     }
 }
 
+/// Persisted shape of a tab's panel tree.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum PanelLayout {
     Leaf { cwd: Option<PathBuf> },
@@ -116,6 +117,7 @@ pub struct SessionProject {
     pub tabs: Vec<SessionTab>,
 }
 
+/// One run's open projects, loose tabs and active tab.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Session {
     pub started_at: u64,

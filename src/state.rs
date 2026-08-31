@@ -7,7 +7,7 @@ use async_io::Timer;
 use freya::prelude::{
     AccessibilityId, AccessibilityIdExt, Clipboard, TaskHandle, UseId, spawn_forever,
 };
-use freya::radio::{RadioChannel, RadioStation};
+use freya::radio::{Radio, RadioChannel, RadioStation};
 use freya::terminal::*;
 use futures::FutureExt;
 use serde::{Deserialize, Serialize};
@@ -53,7 +53,7 @@ impl ProjectId {
 pub struct Project {
     pub id: ProjectId,
     pub name: String,
-    /// Stable identity: the marcgit root or the main worktree itself.
+    /// Stable identity, the marcgit root or the main worktree itself.
     pub root: PathBuf,
     /// The repository's main worktree (trunk for marcgit layouts).
     pub main: PathBuf,
@@ -1358,15 +1358,12 @@ impl AppState {
             self.tabs[from_idx].group = self.tabs[to_idx].group.clone();
         }
         let active_id = self.tabs[self.active_tab].id;
-        if from_idx < to_idx {
-            self.tabs.insert(to_idx + 1, self.tabs[from_idx].clone());
-            self.tabs.remove(from_idx);
-        } else {
-            let tab = self.tabs.remove(from_idx);
-            self.tabs.insert(to_idx, tab);
-        }
 
-        // Keep active_tab pointing at the same tab
+        // Removing first shifts a later target down, landing the tab after it.
+        let tab = self.tabs.remove(from_idx);
+        self.tabs.insert(to_idx, tab);
+
+        // Keep active_tab pointing at the same tab.
         if let Some(new_active) = self.tabs.iter().position(|t| t.id == active_id) {
             self.active_tab = new_active;
         }
@@ -1486,6 +1483,9 @@ impl RadioChannel<AppState> for AppChannel {}
 
 /// Scope-independent handle to the app state, safe in detached tasks.
 pub type AppStation = RadioStation<AppState, AppChannel>;
+
+/// Scoped handle to the app state, re-rendering its component on change.
+pub type AppRadio = Radio<AppState, AppChannel>;
 
 impl AppState {
     fn watch_panel(

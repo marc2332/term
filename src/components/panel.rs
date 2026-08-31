@@ -4,7 +4,7 @@ use freya::{prelude::*, terminal::*};
 
 use crate::components::tab_bar::{drag_preview, menu_item};
 use crate::shortcuts::{self, Shortcut};
-use crate::state::{AppChannel, AppState, Axis, PanelNode, TabId};
+use crate::state::{AppChannel, AppRadio, AppState, Axis, PanelNode, TabId};
 
 #[derive(PartialEq, Clone)]
 pub struct Panel {
@@ -306,11 +306,7 @@ impl Component for Panel {
 }
 
 /// Dim scrim with a centered card, shown when the panel's shell has exited.
-fn shell_exited_overlay(
-    mut radio: Radio<AppState, AppChannel>,
-    tab_id: TabId,
-    panel_id: AccessibilityId,
-) -> Rect {
+fn shell_exited_overlay(mut radio: AppRadio, tab_id: TabId, panel_id: AccessibilityId) -> Rect {
     rect()
         .position(Position::new_absolute().left(0.).top(0.))
         .layer(Layer::Relative(1))

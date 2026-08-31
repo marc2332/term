@@ -30,7 +30,7 @@ pub struct Config {
     #[serde(default)]
     pub font_family: Option<String>,
 
-    /// What to show on launch: "welcome", "restore-last" or "fresh".
+    /// What to show on launch, one of "welcome", "restore-last" or "fresh".
     #[serde(default)]
     pub startup: Startup,
 }

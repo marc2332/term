@@ -25,14 +25,14 @@ fn fix_flatpak_cursor_theme() {
         .load_icon("left_ptr")
         .is_none()
     {
-        // SAFETY: called before any other threads are spawned.
+        // Safe as no other thread has been spawned yet.
         unsafe {
             std::env::set_var("XCURSOR_THEME", "Adwaita");
         }
     }
 
     if std::env::var("XCURSOR_SIZE").is_err() {
-        // SAFETY: called before any other threads are spawned.
+        // Safe as no other thread has been spawned yet.
         unsafe {
             std::env::set_var("XCURSOR_SIZE", "24");
         }

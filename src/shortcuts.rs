@@ -23,11 +23,6 @@ pub enum Shortcut {
     Paste,
 }
 
-/// Cmd on macOS, Ctrl+Shift elsewhere, since plain Ctrl belongs to the shell there.
-fn command_shift(modifiers: Modifiers) -> bool {
-    modifiers.contains(Modifiers::ctrl_or_meta()) && (MAC || modifiers.contains(Modifiers::SHIFT))
-}
-
 /// Cmd combos on macOS never reach the shell, even when unbound.
 pub fn reserved_for_app(modifiers: Modifiers) -> bool {
     MAC && modifiers.contains(Modifiers::META)
@@ -82,7 +77,8 @@ pub fn resolve(event: &KeyboardEventData) -> Option<Shortcut> {
         }
     }
 
-    if command_shift(modifiers) {
+    // Cmd on macOS, Ctrl+Shift elsewhere, since plain Ctrl belongs to the shell there.
+    if modifiers.contains(Modifiers::ctrl_or_meta()) && (MAC || shift) {
         let matched = match character.as_str() {
             "t" | "T" => Some(Shortcut::NewTab),
             "w" | "W" => Some(Shortcut::CloseTab),

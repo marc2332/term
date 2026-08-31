@@ -11,9 +11,9 @@ use std::time::Duration;
 
 use crate::components::titlebar::Titlebar;
 use crate::git::Worktree;
-use crate::state::{AppChannel, AppState, AppStation, Modal, ProjectId, TabId, WorktreeEntry};
-
-type AppRadio = Radio<AppState, AppChannel>;
+use crate::state::{
+    AppChannel, AppRadio, AppState, AppStation, Modal, ProjectId, TabId, WorktreeEntry,
+};
 
 /// Payload for every sidebar drag.
 #[derive(Clone, PartialEq)]
@@ -46,26 +46,13 @@ enum SidebarItem {
     LooseDrop,
 }
 
-fn worktree_row_height(row: &WorktreeRow) -> f32 {
-    let dirty = row.worktree.diff.is_some_and(|d| !d.is_clean());
-    if row.compact {
-        28.
-    } else if row.tab.is_some() {
-        if dirty { 50. } else { 44. }
-    } else if dirty {
-        44.
-    } else {
-        28.
-    }
-}
-
 impl SidebarItem {
     /// Item height plus the 4px gap below it.
     fn size(&self) -> f32 {
         let height = match self {
             SidebarItem::Header(_) => 28.,
             SidebarItem::Group(_) => 28.,
-            SidebarItem::Worktree(row) => worktree_row_height(row),
+            SidebarItem::Worktree(row) => row.height(),
             SidebarItem::ArchivedFilter(_) => 34.,
             SidebarItem::Tab(tab) => {
                 if tab.collapsed {
@@ -79,119 +66,126 @@ impl SidebarItem {
         };
         height + 4.
     }
-}
 
-fn sidebar_item_element(mut radio: AppRadio, item: &SidebarItem) -> Element {
-    match item {
-        SidebarItem::Header(header) => {
-            let group_id = header.id;
-            let name = header.name.clone();
-            let zone = DragZone::new(DragPayload::Project(group_id))
-                .child(header.clone())
-                .show_while_dragging(false)
-                .drag_element(drag_chip(
-                    Some(SvgViewer::new(lucide::folder_git_2())),
-                    name,
-                ));
-            DropZone::new(move |payload: DragPayload| match payload {
-                DragPayload::Tab(dragged_id) => {
-                    radio
-                        .write_channel(AppChannel::Tabs)
-                        .reparent_tab(dragged_id, Some(group_id));
-                }
-                DragPayload::Project(dragged_id) => {
-                    radio
-                        .write_channel(AppChannel::Tabs)
-                        .move_project(dragged_id, group_id);
-                }
-                DragPayload::Worktree(..)
-                | DragPayload::WorktreeGroup(..)
-                | DragPayload::TabGroup(..) => {}
-            })
-            .child(zone)
-            .into_element()
-        }
-        SidebarItem::Group(group) => {
-            let target = group.target;
-            let group_name = group.name.clone();
-            let payload = match target {
-                GroupTarget::Worktrees(project_id) => {
-                    DragPayload::WorktreeGroup(project_id, group.name.clone())
-                }
-                GroupTarget::Tabs(container) => {
-                    DragPayload::TabGroup(container, group.name.clone())
-                }
-            };
-            let inner: Element = DragZone::new(payload)
-                .child(group.clone())
-                .show_while_dragging(false)
-                .drag_element(drag_chip(
-                    Some(SvgViewer::new(lucide::folder())),
-                    group.name.clone(),
-                ))
-                .into_element();
-            let zone = DropZone::new(move |payload: DragPayload| {
-                let mut state = radio.write_channel(AppChannel::Tabs);
-                match (target, payload) {
-                    (
-                        GroupTarget::Worktrees(project_id),
-                        DragPayload::Worktree(dragged_project, dragged_name),
-                    ) if dragged_project == project_id => {
-                        state.add_worktree_to_group(project_id, &group_name, &dragged_name);
+    fn element(&self, mut radio: AppRadio) -> Element {
+        match self {
+            SidebarItem::Header(header) => {
+                let group_id = header.id;
+                let zone = DragZone::new(DragPayload::Project(group_id))
+                    .child(header.clone())
+                    .show_while_dragging(false)
+                    .drag_element(drag_chip(
+                        Some(SvgViewer::new(lucide::folder_git_2())),
+                        header.name.clone(),
+                    ));
+                DropZone::new(move |payload: DragPayload| match payload {
+                    DragPayload::Tab(dragged_id) => {
+                        radio
+                            .write_channel(AppChannel::Tabs)
+                            .reparent_tab(dragged_id, Some(group_id));
                     }
-                    (
-                        GroupTarget::Worktrees(project_id),
-                        DragPayload::WorktreeGroup(dragged_project, dragged_name),
-                    ) if dragged_project == project_id && dragged_name != group_name => {
-                        state.move_worktree_group_before(project_id, &dragged_name, &group_name);
+                    DragPayload::Project(dragged_id) => {
+                        radio
+                            .write_channel(AppChannel::Tabs)
+                            .move_project(dragged_id, group_id);
                     }
-                    (GroupTarget::Tabs(container), DragPayload::Tab(dragged_id)) => {
-                        state.append_tab_to_group(dragged_id, container, &group_name);
-                    }
-                    (
-                        GroupTarget::Tabs(container),
-                        DragPayload::TabGroup(dragged_container, dragged_name),
-                    ) if !(dragged_container == container && dragged_name == group_name) => {
-                        let first_member = state
-                            .tabs
-                            .iter()
-                            .find(|tab| {
-                                tab.project == container
-                                    && tab.group.as_deref() == Some(group_name.as_str())
-                            })
-                            .map(|tab| tab.id);
-                        if let Some(first_member) = first_member {
-                            state.move_tab_group(dragged_container, &dragged_name, first_member);
-                        }
-                    }
-                    _ => {}
-                }
-            })
-            .child(inner);
-            animated_portal(group.identity())
-                .key(group.identity())
-                .width(Size::fill())
-                .animation_dependency(group.index)
+                    DragPayload::Worktree(..)
+                    | DragPayload::WorktreeGroup(..)
+                    | DragPayload::TabGroup(..) => {}
+                })
                 .child(zone)
                 .into_element()
-        }
-        SidebarItem::Worktree(row) => draggable_worktree_row(radio, row.clone()),
-        SidebarItem::ArchivedFilter(row) => row.clone().into_element(),
-        SidebarItem::Tab(tab) => draggable_tab(radio, tab.clone()),
-        SidebarItem::Divider => rect()
-            .width(Size::fill())
-            .height(Size::px(1.))
-            .background((70, 70, 70))
-            .into_element(),
-        SidebarItem::LooseDrop => DropZone::new(move |payload: DragPayload| {
-            if let DragPayload::Tab(dragged_id) = payload {
-                radio
-                    .write_channel(AppChannel::Tabs)
-                    .reparent_tab(dragged_id, None);
             }
-        })
-        .child(rect().width(Size::fill()).height(Size::fill()))
-        .into_element(),
+            SidebarItem::Group(group) => {
+                let target = group.target;
+                let group_name = group.name.clone();
+                let payload = match target {
+                    GroupTarget::Worktrees(project_id) => {
+                        DragPayload::WorktreeGroup(project_id, group.name.clone())
+                    }
+                    GroupTarget::Tabs(container) => {
+                        DragPayload::TabGroup(container, group.name.clone())
+                    }
+                };
+                let inner: Element = DragZone::new(payload)
+                    .child(group.clone())
+                    .show_while_dragging(false)
+                    .drag_element(drag_chip(
+                        Some(SvgViewer::new(lucide::folder())),
+                        group.name.clone(),
+                    ))
+                    .into_element();
+                let zone = DropZone::new(move |payload: DragPayload| {
+                    let mut state = radio.write_channel(AppChannel::Tabs);
+                    match (target, payload) {
+                        (
+                            GroupTarget::Worktrees(project_id),
+                            DragPayload::Worktree(dragged_project, dragged_name),
+                        ) if dragged_project == project_id => {
+                            state.add_worktree_to_group(project_id, &group_name, &dragged_name);
+                        }
+                        (
+                            GroupTarget::Worktrees(project_id),
+                            DragPayload::WorktreeGroup(dragged_project, dragged_name),
+                        ) if dragged_project == project_id && dragged_name != group_name => {
+                            state.move_worktree_group_before(
+                                project_id,
+                                &dragged_name,
+                                &group_name,
+                            );
+                        }
+                        (GroupTarget::Tabs(container), DragPayload::Tab(dragged_id)) => {
+                            state.append_tab_to_group(dragged_id, container, &group_name);
+                        }
+                        (
+                            GroupTarget::Tabs(container),
+                            DragPayload::TabGroup(dragged_container, dragged_name),
+                        ) if !(dragged_container == container && dragged_name == group_name) => {
+                            let first_member = state
+                                .tabs
+                                .iter()
+                                .find(|tab| {
+                                    tab.project == container
+                                        && tab.group.as_deref() == Some(group_name.as_str())
+                                })
+                                .map(|tab| tab.id);
+                            if let Some(first_member) = first_member {
+                                state.move_tab_group(
+                                    dragged_container,
+                                    &dragged_name,
+                                    first_member,
+                                );
+                            }
+                        }
+                        _ => {}
+                    }
+                })
+                .child(inner);
+                animated_portal(group.identity())
+                    .key(group.identity())
+                    .width(Size::fill())
+                    .animation_dependency(group.index)
+                    .child(zone)
+                    .into_element()
+            }
+            SidebarItem::Worktree(row) => draggable_worktree_row(radio, row.clone()),
+            SidebarItem::ArchivedFilter(row) => row.clone().into_element(),
+            SidebarItem::Tab(tab) => draggable_tab(radio, tab.clone()),
+            SidebarItem::Divider => rect()
+                .width(Size::fill())
+                .height(Size::px(1.))
+                .background((70, 70, 70))
+                .into_element(),
+            SidebarItem::LooseDrop => DropZone::new(move |payload: DragPayload| {
+                if let DragPayload::Tab(dragged_id) = payload {
+                    radio
+                        .write_channel(AppChannel::Tabs)
+                        .reparent_tab(dragged_id, None);
+                }
+            })
+            .child(rect().width(Size::fill()).height(Size::fill()))
+            .into_element(),
+        }
     }
 }
 
@@ -415,7 +409,7 @@ impl Component for TabBar {
                         .width(Size::fill())
                         .height(Size::px(item.size))
                         .padding((0., 0., 4., 0.))
-                        .child(sidebar_item_element(radio, &items[item.index]))
+                        .child(items[item.index].element(radio))
                         .into()
                 })
                 .length(length)
@@ -471,9 +465,30 @@ fn bottom_actions(mut radio: AppRadio, station: AppStation, compact: bool) -> El
                     radio.write_channel(AppChannel::Tabs).toggle_sidebar();
                 },
             ))
-            .child(new_tab_button(station, None, true))
-            .child(add_project_button(radio, true))
-            .child(about_button(radio, true))
+            .child(sidebar_action_button(
+                SvgViewer::new(lucide::circle_plus()),
+                "New Tab",
+                true,
+                move |_| {
+                    AppState::create_plain_tab(station, None);
+                },
+            ))
+            .child(sidebar_action_button(
+                SvgViewer::new(lucide::folder_plus()),
+                "Add Project",
+                true,
+                move |_| {
+                    radio.write_channel(AppChannel::Tabs).modal = Some(Modal::AddProject);
+                },
+            ))
+            .child(sidebar_action_button(
+                SvgViewer::new(lucide::info()),
+                "About",
+                true,
+                move |_| {
+                    radio.write_channel(AppChannel::Tabs).modal = Some(Modal::About);
+                },
+            ))
             .into_element()
     } else {
         rect()
@@ -1008,6 +1023,22 @@ struct WorktreeRow {
     in_group: bool,
 }
 
+impl WorktreeRow {
+    /// Taller when the row has an open tab or uncommitted changes.
+    fn height(&self) -> f32 {
+        let dirty = self.worktree.diff.is_some_and(|diff| !diff.is_clean());
+        if self.compact {
+            28.
+        } else if self.tab.is_some() {
+            if dirty { 50. } else { 44. }
+        } else if dirty {
+            44.
+        } else {
+            28.
+        }
+    }
+}
+
 /// Branch name with the leading segment in bold, like "feat" in "feat/lalala".
 fn worktree_name_label(worktree: &Worktree) -> Element {
     let name = &worktree.name;
@@ -1026,7 +1057,7 @@ fn worktree_name_label(worktree: &Worktree) -> Element {
         .into_element()
 }
 
-/// Compact elapsed time: "now", then "5m", "1h", "3d", "2w".
+/// Compact elapsed time like "now", "5m", "1h", "3d" or "2w".
 fn format_age(elapsed: Duration) -> String {
     let seconds = elapsed.as_secs();
     if seconds < 60 {
@@ -1217,7 +1248,7 @@ impl Component for WorktreeRow {
 
         rect()
             .width(Size::fill())
-            .height(Size::px(worktree_row_height(self)))
+            .height(Size::px(self.height()))
             .padding((0., 0., 0., indent))
             .on_pointer_over(move |_| hovered.set_if_modified(true))
             .on_pointer_out(move |_| hovered.set_if_modified(false))
@@ -1542,44 +1573,6 @@ fn sidebar_action_button(
         })
 }
 
-/// New tab in `project`, or a loose tab when `None`.
-fn new_tab_button(
-    station: AppStation,
-    project: Option<ProjectId>,
-    collapsed: bool,
-) -> impl IntoElement {
-    sidebar_action_button(
-        SvgViewer::new(lucide::circle_plus()),
-        "New Tab",
-        collapsed,
-        move |_| {
-            AppState::create_plain_tab(station, project);
-        },
-    )
-}
-
-fn add_project_button(mut radio: AppRadio, collapsed: bool) -> impl IntoElement {
-    sidebar_action_button(
-        SvgViewer::new(lucide::folder_plus()),
-        "Add Project",
-        collapsed,
-        move |_| {
-            radio.write_channel(AppChannel::Tabs).modal = Some(Modal::AddProject);
-        },
-    )
-}
-
-fn about_button(mut radio: AppRadio, collapsed: bool) -> impl IntoElement {
-    sidebar_action_button(
-        SvgViewer::new(lucide::info()),
-        "About",
-        collapsed,
-        move |_| {
-            radio.write_channel(AppChannel::Tabs).modal = Some(Modal::About);
-        },
-    )
-}
-
 fn close_button(tab_id: TabId, mut radio: AppRadio, icon: SvgViewer) -> Element {
     Button::new()
         .flat()
@@ -1642,15 +1635,6 @@ fn rename_input(
                 true
             }
         })
-        .into_element()
-}
-
-fn tab_title(title: String) -> Element {
-    label()
-        .text(title)
-        .width(Size::flex(1.))
-        .max_lines(1)
-        .text_overflow(TextOverflow::Ellipsis)
         .into_element()
 }
 
@@ -1718,7 +1702,12 @@ impl Component for TabButton {
         let title_element = if is_editing {
             rename_input(rename_value, input_a11y_id, cancelled)
         } else {
-            tab_title(self.title.clone())
+            label()
+                .text(self.title.clone())
+                .width(Size::flex(1.))
+                .max_lines(1)
+                .text_overflow(TextOverflow::Ellipsis)
+                .into_element()
         };
 
         let trailing: Element = if *hovered.read() {
