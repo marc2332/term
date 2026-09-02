@@ -18,10 +18,11 @@ pub struct Titlebar {
 impl Component for Titlebar {
     fn render(&self) -> impl IntoElement {
         let mut maximized = use_state(|| false);
+        let window_id = Platform::window_id();
 
         use_side_effect(move || {
             let _ = Platform::get().root_size.read();
-            Platform::get().with_window(None, move |window| {
+            Platform::get().with_window(window_id, move |window| {
                 if let Some(mut maximized) = maximized.try_write() {
                     *maximized = window.is_maximized();
                 }
@@ -38,22 +39,19 @@ impl Component for Titlebar {
         }
 
         let minimize = move |_| {
-            Platform::get().with_window(None, |window| {
+            Platform::get().with_window(window_id, |window| {
                 window.set_minimized(true);
             });
         };
 
         let toggle_maximize = move |_| {
-            Platform::get().with_window(None, |window| {
+            Platform::get().with_window(window_id, |window| {
                 window.set_maximized(!window.is_maximized());
             });
         };
 
         let close = move |_| {
-            let platform = Platform::get();
-            Platform::get().with_window(None, move |window| {
-                platform.close_window(window.id());
-            });
+            Platform::get().close_window(window_id);
         };
 
         rect()

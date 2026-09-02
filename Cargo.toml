@@ -12,7 +12,7 @@ name = "marcterm"
 path = "src/main.rs"
 
 [dependencies]
-freya = { git = "https://github.com/marc2332/freya", rev = "84fa05580de3806ad4681ffdb519a094d1790654", features = [
+freya = { git = "https://github.com/marc2332/freya", rev = "e215328c59e7dd56819ce878f071f2b23d5dc1c3", features = [
   "terminal",
   "radio",
   "material-design",
@@ -20,7 +20,7 @@ freya = { git = "https://github.com/marc2332/freya", rev = "84fa05580de3806ad468
   "router",
   "borderless",
 ] }
-freya-performance-plugin = { git = "https://github.com/marc2332/freya", rev = "84fa05580de3806ad4681ffdb519a094d1790654" }
+freya-performance-plugin = { git = "https://github.com/marc2332/freya", rev = "e215328c59e7dd56819ce878f071f2b23d5dc1c3" }
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
