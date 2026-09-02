@@ -1081,7 +1081,6 @@ impl Component for WorktreeRow {
         let tab_id = tab.map(|t| t.id);
         let mut radio = use_radio(AppChannel::Tabs);
         let station = use_radio_station::<AppState, AppChannel>();
-        let mut hovered = use_state(|| false);
 
         let is_open = tab.is_some();
         let is_active = tab.is_some_and(|t| t.active);
@@ -1217,9 +1216,6 @@ impl Component for WorktreeRow {
                 .height(Size::fill())
                 .center()
                 .child(match tab_id {
-                    Some(tab_id) if *hovered.read() => {
-                        close_button(tab_id, radio, SvgViewer::new(lucide::moon()))
-                    }
                     Some(_) if outputting => loading_indicator(text_color),
                     _ => icon
                         .width(Size::px(14.))
@@ -1250,8 +1246,6 @@ impl Component for WorktreeRow {
             .width(Size::fill())
             .height(Size::px(self.height()))
             .padding((0., 0., 0., indent))
-            .on_pointer_over(move |_| hovered.set_if_modified(true))
-            .on_pointer_out(move |_| hovered.set_if_modified(false))
             .child(
                 Button::new()
                     .width(Size::fill())
