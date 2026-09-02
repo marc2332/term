@@ -2460,6 +2460,7 @@ name = "marcterm"
 version = "0.4.7"
 dependencies = [
  "async-io",
+ "blocking",
  "clap",
  "dirs",
  "freya",

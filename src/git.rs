@@ -1,6 +1,9 @@
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
+use blocking::unblock;
+use futures::stream::{self, StreamExt};
+
 pub type Result<T> = std::result::Result<T, String>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -138,16 +141,30 @@ pub fn project_exists(root: &Path) -> bool {
 }
 
 /// List the repository's worktrees, main first, skipping hidden rows' diff stats.
-pub fn list_worktrees(
-    main: &Path,
-    skip_diffs: &[String],
+pub async fn list_worktrees(
+    main: PathBuf,
+    skip_diffs: Vec<String>,
     skip_all_diffs: bool,
 ) -> Result<Vec<Worktree>> {
-    let mut worktrees = worktree_entries(main)?;
-    for worktree in &mut worktrees {
-        if !(skip_all_diffs || skip_diffs.contains(&worktree.name)) {
-            worktree.diff = Some(diff_stats(&worktree.path));
+    let mut worktrees = unblock(move || worktree_entries(&main)).await?;
+
+    let diffs: Vec<Option<DiffStats>> = stream::iter(worktrees.iter().map(|worktree| {
+        let path = worktree.path.clone();
+        let wanted = !(skip_all_diffs || skip_diffs.contains(&worktree.name));
+        async move {
+            if wanted {
+                Some(unblock(move || diff_stats(&path)).await)
+            } else {
+                None
+            }
         }
+    }))
+    .buffered(4)
+    .collect()
+    .await;
+
+    for (worktree, diff) in worktrees.iter_mut().zip(diffs) {
+        worktree.diff = diff;
     }
     Ok(worktrees)
 }
@@ -177,19 +194,17 @@ fn parse_worktree(block: &str) -> Option<Worktree> {
     Some(Worktree::placeholder(path))
 }
 
-/// Run blocking work (subprocesses, fs) on a thread, awaitable from the UI.
+/// Run blocking work (subprocesses, fs) off the UI thread.
 pub async fn run_async<T: Send + 'static>(
     f: impl FnOnce() -> Result<T> + Send + 'static,
 ) -> Result<T> {
-    let (tx, rx) = futures::channel::oneshot::channel();
-    std::thread::spawn(move || {
-        let _ = tx.send(f());
-    });
-    rx.await.map_err(|_| "background task failed".to_string())?
+    unblock(f).await
 }
 
 #[cfg(test)]
 mod tests {
+    use futures::executor::block_on;
+
     use super::*;
 
     fn sh(dir: &Path, cmd: &str) {
@@ -240,7 +255,7 @@ mod tests {
         let wt_path = root.join("feat-login");
         assert_eq!(detect_project(&wt_path).unwrap().root, root);
 
-        let listed = list_worktrees(&trunk, &[], false).unwrap();
+        let listed = block_on(list_worktrees(trunk.clone(), vec![], false)).unwrap();
         assert_eq!(listed.len(), 2);
         assert_eq!(listed[0].path, trunk);
         assert!(listed[0].is_main);
@@ -248,7 +263,8 @@ mod tests {
         assert!(!listed[1].is_main);
         assert_eq!(listed[1].diff, Some(DiffStats::default()));
 
-        let skipped = list_worktrees(&trunk, &["feat-login".to_string()], false).unwrap();
+        let skipped =
+            block_on(list_worktrees(trunk.clone(), vec!["feat-login".to_string()], false)).unwrap();
         assert_eq!(skipped[1].diff, None);
 
         std::fs::write(wt_path.join("file.txt"), "hello\nworld\n").unwrap();
@@ -288,7 +304,7 @@ mod tests {
         let wt_path = base.join("elsewhere/feature-wt");
         assert_eq!(detect_project(&wt_path).unwrap().root, repo);
 
-        let listed = list_worktrees(&repo, &[], false).unwrap();
+        let listed = block_on(list_worktrees(repo.clone(), vec![], false)).unwrap();
         assert_eq!(listed.len(), 2);
         assert_eq!(listed[0].path, repo);
         assert!(listed[0].is_main);

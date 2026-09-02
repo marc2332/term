@@ -1646,12 +1646,13 @@ impl AppState {
         Self::refresh_worktrees(station, project_id, false);
     }
 
-    /// Refresh worktrees in the background, writing only on change, `forced` also covering hidden rows.
+    /// Refresh worktrees in the background, writing only on change.
+    /// `forced` also diffs collapsed projects.
     pub fn refresh_worktrees(mut station: AppStation, project_id: ProjectId, forced: bool) {
         let Some((main, skip_diffs, skip_all)) = ({
             let state = station.peek();
             state.project(project_id).map(|p| {
-                let hidden = if forced || p.show_archived {
+                let hidden = if p.show_archived {
                     vec![]
                 } else {
                     p.archived.clone()
@@ -1662,7 +1663,7 @@ impl AppState {
             return;
         };
         spawn_forever(async move {
-            match git::run_async(move || git::list_worktrees(&main, &skip_diffs, skip_all)).await {
+            match git::list_worktrees(main, skip_diffs, skip_all).await {
                 Ok(worktrees) => {
                     let changed = station
                         .peek()
@@ -1761,10 +1762,9 @@ impl AppState {
                     .project(project_id)
                     .map(|p| p.archived.clone())
                     .unwrap_or_default();
-                let worktrees =
-                    git::run_async(move || git::list_worktrees(&main, &skip_diffs, false))
-                        .await
-                        .unwrap_or_default();
+                let worktrees = git::list_worktrees(main, skip_diffs, false)
+                    .await
+                    .unwrap_or_default();
                 for tab in &saved_project.tabs {
                     Self::restore_tab(station, tab, Some(project_id));
                 }
