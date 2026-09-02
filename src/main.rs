@@ -68,7 +68,7 @@ fn main() {
     });
 
     let mut launch_config = LaunchConfig::new()
-        .with_plugin(BorderlessPlugin::new())
+        .with_plugin(BorderlessPlugin::new().with_corner_radius(12.))
         .with_window(
             WindowConfig::new(move || App {
                 font_size: config.font_size,

@@ -289,6 +289,7 @@ impl Component for AddProjectModal {
                                     .child(
                                         Input::new(path)
                                             .flat()
+                                            .rounded_full()
                                             .layout_variant(InputLayoutVariant::Expanded)
                                             .width(Size::flex(1.))
                                             .placeholder("~/Projects/myproject")

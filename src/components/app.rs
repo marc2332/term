@@ -2,7 +2,6 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use async_io::Timer;
-use freya::borderless::use_maximized;
 use freya::prelude::*;
 use freya::radio::*;
 
@@ -148,8 +147,6 @@ impl Component for App {
             });
         });
 
-        let maximized = use_maximized();
-
         let (show_welcome, notice) = {
             let state = radio.read();
             (
@@ -162,7 +159,6 @@ impl Component for App {
             .expanded()
             .background((38, 38, 38))
             .color((220, 220, 220))
-            .corner_radius(CornerRadius::new_all(if maximized() { 0. } else { 12. }))
             .overflow(Overflow::Clip)
             .direction(Direction::Vertical)
             .on_global_key_down(move |e: Event<KeyboardEventData>| {
