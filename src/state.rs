@@ -166,8 +166,6 @@ pub struct WorktreeEntry {
 pub enum Modal {
     About,
     AddProject,
-    ConfirmArchiveAll(ProjectId),
-    ConfirmUnarchiveAll(ProjectId),
     ConfirmCloseProject(ProjectId),
 }
 
@@ -1047,24 +1045,6 @@ impl AppState {
             .unwrap_or_default();
         list.retain(|n| n != name);
         self.set_archived(id, list);
-    }
-
-    /// Archive every non-main worktree of a project and close their tabs.
-    pub fn archive_all_worktrees(&mut self, id: ProjectId) {
-        let targets: Vec<(String, PathBuf)> = self
-            .project(id)
-            .map(|p| {
-                p.worktrees
-                    .iter()
-                    .filter(|wt| !wt.is_main)
-                    .map(|wt| (wt.name.clone(), wt.path.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
-        self.set_archived(id, targets.iter().map(|(name, _)| name.clone()).collect());
-        for (_, path) in &targets {
-            self.close_tabs_in_worktree(path);
-        }
     }
 
     /// Close the project's worktree tabs with no output for over an hour.

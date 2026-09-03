@@ -283,6 +283,14 @@ impl Component for TabBar {
                     let open_tab = entry
                         .tab
                         .and_then(|id| state.tabs.iter().find(|t| t.id == id));
+                    let age = match open_tab {
+                        Some(tab) => Some(format_age(tab.last_output.elapsed())),
+                        None => entry
+                            .worktree
+                            .last_commit
+                            .and_then(|time| time.elapsed().ok())
+                            .map(format_age),
+                    };
                     SidebarItem::Worktree(WorktreeRow {
                         project_id: project.id,
                         index,
@@ -299,7 +307,7 @@ impl Component for TabBar {
                         tab_title: open_tab
                             .map(|t| t.title.clone())
                             .filter(|title| !title.is_empty()),
-                        age: open_tab.map(|t| format_age(t.last_output.elapsed())),
+                        age,
                         compact: state.sidebar_collapsed,
                     })
                 };
@@ -713,10 +721,10 @@ pub(crate) fn copy_path_item(path: PathBuf) -> MenuButton {
 }
 
 fn open_project_menu(mut radio: AppRadio, station: AppStation, id: ProjectId) {
-    let (root, has_archived) = match station.peek().project(id) {
-        Some(project) => (Some(project.root.clone()), !project.archived.is_empty()),
-        None => (None, false),
-    };
+    let root = station
+        .peek()
+        .project(id)
+        .map(|project| project.root.clone());
     let menu = Menu::new()
         .map(root, |el, root| el.child(copy_path_item(root)))
         .child(menu_item(
@@ -735,23 +743,6 @@ fn open_project_menu(mut radio: AppRadio, station: AppStation, id: ProjectId) {
                     .sleep_old_worktrees(id);
             },
         ))
-        .child(menu_item(
-            SvgViewer::new(lucide::archive()),
-            "Archive all worktrees",
-            move || {
-                radio.write_channel(AppChannel::Tabs).modal = Some(Modal::ConfirmArchiveAll(id));
-            },
-        ))
-        .maybe(has_archived, |el| {
-            el.child(menu_item(
-                SvgViewer::new(lucide::archive_restore()),
-                "Unarchive all worktrees",
-                move || {
-                    radio.write_channel(AppChannel::Tabs).modal =
-                        Some(Modal::ConfirmUnarchiveAll(id));
-                },
-            ))
-        })
         .child(menu_item(
             SvgViewer::new(lucide::x()),
             "Close project",
@@ -854,9 +845,9 @@ impl Component for ProjectHeader {
                 .maybe(hovering, |el| {
                     el.maybe(has_archived, |el| {
                         let (icon, tooltip) = if show_archived {
-                            (lucide::eye_off(), "Hide archived worktrees")
+                            (lucide::search_x(), "Hide archived worktrees")
                         } else {
-                            (lucide::eye(), "Show archived worktrees")
+                            (lucide::search(), "Show archived worktrees")
                         };
                         el.child(header_action(SvgViewer::new(icon), tooltip, move |e| {
                             e.stop_propagation();
@@ -1016,7 +1007,7 @@ struct WorktreeRow {
     worktree: Worktree,
     tab: Option<OpenTab>,
     tab_title: Option<String>,
-    /// Time since the tab's last terminal output, like "1h".
+    /// Time since the tab's last output, or since the last commit when asleep, like "1h".
     age: Option<String>,
     compact: bool,
     /// Member of a worktree group, indented under its header.

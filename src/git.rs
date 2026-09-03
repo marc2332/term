@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use blocking::unblock;
 use futures::stream::{self, StreamExt};
@@ -24,6 +25,7 @@ pub struct Worktree {
     pub path: PathBuf,
     pub is_main: bool,
     pub diff: Option<DiffStats>,
+    pub last_commit: Option<SystemTime>,
 }
 
 impl Worktree {
@@ -39,6 +41,7 @@ impl Worktree {
             path,
             is_main: false,
             diff: None,
+            last_commit: None,
         }
     }
 }
@@ -148,29 +151,38 @@ pub async fn list_worktrees(
 ) -> Result<Vec<Worktree>> {
     let mut worktrees = unblock(move || worktree_entries(&main)).await?;
 
-    let diffs: Vec<Option<DiffStats>> = stream::iter(worktrees.iter().map(|worktree| {
-        let path = worktree.path.clone();
-        let wanted = !(skip_all_diffs || skip_diffs.contains(&worktree.name));
-        async move {
-            if wanted {
-                Some(unblock(move || diff_stats(&path)).await)
-            } else {
-                None
+    let details: Vec<(Option<DiffStats>, Option<SystemTime>)> =
+        stream::iter(worktrees.iter().map(|worktree| {
+            let path = worktree.path.clone();
+            let wanted = !(skip_all_diffs || skip_diffs.contains(&worktree.name));
+            async move {
+                if wanted {
+                    unblock(move || (Some(diff_stats(&path)), last_commit_time(&path))).await
+                } else {
+                    (None, None)
+                }
             }
-        }
-    }))
-    .buffered(4)
-    .collect()
-    .await;
+        }))
+        .buffered(4)
+        .collect()
+        .await;
 
-    for (worktree, diff) in worktrees.iter_mut().zip(diffs) {
+    for (worktree, (diff, last_commit)) in worktrees.iter_mut().zip(details) {
         worktree.diff = diff;
+        worktree.last_commit = last_commit;
     }
     Ok(worktrees)
 }
 
+/// Committer time of the worktree's latest commit.
+fn last_commit_time(worktree: &Path) -> Option<SystemTime> {
+    let out = run("git", &["log", "-1", "--format=%ct"], worktree).ok()?;
+    let seconds = out.trim().parse::<u64>().ok()?;
+    Some(UNIX_EPOCH + Duration::from_secs(seconds))
+}
+
 /// Lines added/removed against HEAD (staged + unstaged, binary files ignored).
-pub fn diff_stats(worktree: &Path) -> DiffStats {
+fn diff_stats(worktree: &Path) -> DiffStats {
     let Ok(out) = run("git", &["diff", "HEAD", "--numstat"], worktree) else {
         return DiffStats::default();
     };
@@ -263,8 +275,12 @@ mod tests {
         assert!(!listed[1].is_main);
         assert_eq!(listed[1].diff, Some(DiffStats::default()));
 
-        let skipped =
-            block_on(list_worktrees(trunk.clone(), vec!["feat-login".to_string()], false)).unwrap();
+        let skipped = block_on(list_worktrees(
+            trunk.clone(),
+            vec!["feat-login".to_string()],
+            false,
+        ))
+        .unwrap();
         assert_eq!(skipped[1].diff, None);
 
         std::fs::write(wt_path.join("file.txt"), "hello\nworld\n").unwrap();

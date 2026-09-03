@@ -25,31 +25,6 @@ impl Component for ModalHost {
                 .unwrap_or_default()
         };
         let confirm = match modal {
-            Some(Modal::ConfirmArchiveAll(id)) => Some(ConfirmParams {
-                title: "Archive all worktrees",
-                message: format!(
-                    "Archive all worktrees in {}? Their open tabs will be closed.",
-                    project_name(id)
-                ),
-                confirm: "Archive",
-                on_confirm: (move |()| {
-                    radio
-                        .write_channel(AppChannel::Tabs)
-                        .archive_all_worktrees(id);
-                })
-                .into(),
-            }),
-            Some(Modal::ConfirmUnarchiveAll(id)) => Some(ConfirmParams {
-                title: "Unarchive all worktrees",
-                message: format!("Unarchive all archived worktrees in {}?", project_name(id)),
-                confirm: "Unarchive",
-                on_confirm: (move |()| {
-                    radio
-                        .write_channel(AppChannel::Tabs)
-                        .set_archived(id, vec![]);
-                })
-                .into(),
-            }),
             Some(Modal::ConfirmCloseProject(id)) => Some(ConfirmParams {
                 title: "Close project",
                 message: format!(
