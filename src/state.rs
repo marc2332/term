@@ -1474,7 +1474,6 @@ impl AppState {
         panel_id: AccessibilityId,
         handle: TerminalHandle,
     ) -> Rc<PanelTask> {
-        // Detached from the component scope, cancelled by PanelTask on drop.
         let task = spawn_forever(async move {
             let idle = Duration::from_secs(1);
             loop {
@@ -1626,19 +1625,16 @@ impl AppState {
         Self::refresh_worktrees(station, project_id, false);
     }
 
-    /// Refresh worktrees in the background, writing only on change.
+    /// Refresh worktrees, writing only on change.
     /// `forced` also diffs collapsed projects.
     pub fn refresh_worktrees(mut station: AppStation, project_id: ProjectId, forced: bool) {
-        let Some((main, skip_diffs, skip_all)) = ({
-            let state = station.peek();
-            state.project(project_id).map(|p| {
-                let hidden = if p.show_archived {
-                    vec![]
-                } else {
-                    p.archived.clone()
-                };
-                (p.main.clone(), hidden, p.collapsed && !forced)
-            })
+        let Some((main, skip_diffs, skip_all)) = station.peek().project(project_id).map(|p| {
+            let hidden = if p.show_archived {
+                vec![]
+            } else {
+                p.archived.clone()
+            };
+            (p.main.clone(), hidden, p.collapsed && !forced)
         }) else {
             return;
         };
@@ -1705,7 +1701,7 @@ impl AppState {
         }
     }
 
-    /// Reopen a saved session's projects and tabs, detecting projects off the UI thread.
+    /// Reopen a saved session's projects and tabs.
     pub fn restore_session(mut station: AppStation, saved: &Session) {
         // Autosave updates the restored session entry in place.
         {
