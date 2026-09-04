@@ -1628,14 +1628,11 @@ impl AppState {
     /// Refresh worktrees, writing only on change.
     /// `forced` also diffs collapsed projects.
     pub fn refresh_worktrees(mut station: AppStation, project_id: ProjectId, forced: bool) {
-        let Some((main, skip_diffs, skip_all)) = station.peek().project(project_id).map(|p| {
-            let hidden = if p.filtering {
-                vec![]
-            } else {
-                p.archived.clone()
-            };
-            (p.main.clone(), hidden, p.collapsed && !forced)
-        }) else {
+        let Some((main, skip_diffs, skip_all)) = station
+            .peek()
+            .project(project_id)
+            .map(|p| (p.main.clone(), p.archived.clone(), p.collapsed && !forced))
+        else {
             return;
         };
         spawn_forever(async move {
