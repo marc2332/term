@@ -40,7 +40,7 @@ enum SidebarItem {
     Header(ProjectHeader),
     Group(GroupRow),
     Worktree(WorktreeRow),
-    ArchivedFilter(ArchivedFilterRow),
+    WorktreeFilter(WorktreeFilterRow),
     Tab(TabButton),
     Divider,
     LooseDrop,
@@ -53,7 +53,7 @@ impl SidebarItem {
             SidebarItem::Header(_) => 28.,
             SidebarItem::Group(_) => 28.,
             SidebarItem::Worktree(row) => row.height(),
-            SidebarItem::ArchivedFilter(_) => 34.,
+            SidebarItem::WorktreeFilter(_) => 34.,
             SidebarItem::Tab(tab) => {
                 if tab.collapsed {
                     28.
@@ -169,7 +169,7 @@ impl SidebarItem {
                     .into_element()
             }
             SidebarItem::Worktree(row) => draggable_worktree_row(radio, row.clone()),
-            SidebarItem::ArchivedFilter(row) => row.clone().into_element(),
+            SidebarItem::WorktreeFilter(row) => row.clone().into_element(),
             SidebarItem::Tab(tab) => draggable_tab(radio, tab.clone()),
             SidebarItem::Divider => rect()
                 .width(Size::fill())
@@ -273,7 +273,7 @@ impl Component for TabBar {
                     name: project.name.clone(),
                     collapsed: project.collapsed,
                     has_archived,
-                    show_archived: project.show_archived,
+                    filtering: project.filtering,
                     compact: state.sidebar_collapsed,
                 }));
                 if project.collapsed {
@@ -312,8 +312,8 @@ impl Component for TabBar {
                     })
                 };
 
-                if project.show_archived && has_archived && !state.sidebar_collapsed {
-                    items.push(SidebarItem::ArchivedFilter(ArchivedFilterRow {
+                if project.filtering && has_archived && !state.sidebar_collapsed {
+                    items.push(SidebarItem::WorktreeFilter(WorktreeFilterRow {
                         project_id: project.id,
                     }));
                 }
@@ -783,7 +783,7 @@ struct ProjectHeader {
     name: String,
     collapsed: bool,
     has_archived: bool,
-    show_archived: bool,
+    filtering: bool,
     compact: bool,
 }
 
@@ -791,7 +791,7 @@ impl Component for ProjectHeader {
     fn render(&self) -> impl IntoElement {
         let id = self.id;
         let has_archived = self.has_archived;
-        let show_archived = self.show_archived;
+        let filtering = self.filtering;
         let mut radio = use_radio(AppChannel::Tabs);
         let station = use_radio_station::<AppState, AppChannel>();
         let mut hovered = use_state(|| false);
@@ -844,16 +844,14 @@ impl Component for ProjectHeader {
                 )
                 .maybe(hovering, |el| {
                     el.maybe(has_archived, |el| {
-                        let (icon, tooltip) = if show_archived {
-                            (lucide::search_x(), "Hide archived worktrees")
+                        let (icon, tooltip) = if filtering {
+                            (lucide::search_x(), "Stop filtering worktrees")
                         } else {
-                            (lucide::search(), "Show archived worktrees")
+                            (lucide::search(), "Filter worktrees")
                         };
                         el.child(header_action(SvgViewer::new(icon), tooltip, move |e| {
                             e.stop_propagation();
-                            radio
-                                .write_channel(AppChannel::Tabs)
-                                .toggle_show_archived(id);
+                            radio.write_channel(AppChannel::Tabs).toggle_filtering(id);
                         }))
                     })
                     .child(header_action(
@@ -1459,17 +1457,17 @@ impl Component for GroupRow {
 
 /// Transparent name filter for all of a project's worktrees, shown at the top of the list.
 #[derive(PartialEq, Clone)]
-struct ArchivedFilterRow {
+struct WorktreeFilterRow {
     project_id: ProjectId,
 }
 
-impl Component for ArchivedFilterRow {
+impl Component for WorktreeFilterRow {
     fn render(&self) -> impl IntoElement {
         let radio = use_radio(AppChannel::Tabs);
         let id = self.project_id;
         let value = radio
             .slice_mut(AppChannel::Tabs, move |state: &mut AppState| {
-                state.archived_filters.entry(id).or_default()
+                state.worktree_filters.entry(id).or_default()
             })
             .into_writable();
 
@@ -1482,6 +1480,7 @@ impl Component for ArchivedFilterRow {
                     .flat()
                     .width(Size::fill())
                     .placeholder("Filter worktrees")
+                    .auto_focus(true)
                     .background(Color::TRANSPARENT)
                     .focus_background(Color::TRANSPARENT)
                     .border_fill(Color::TRANSPARENT)
@@ -1505,7 +1504,7 @@ impl Component for ArchivedFilterRow {
     }
 
     fn render_key(&self) -> DiffKey {
-        DiffKey::from(&("archived-filter", self.project_id.0))
+        DiffKey::from(&("worktree-filter", self.project_id.0))
     }
 }
 

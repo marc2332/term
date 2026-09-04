@@ -63,8 +63,8 @@ pub struct Project {
     /// Custom sidebar order of non-main worktree names.
     pub worktree_order: Vec<String>,
     pub collapsed: bool,
-    /// Reveal archived worktrees in the sidebar (not persisted).
-    pub show_archived: bool,
+    /// Filtering the worktree list, which also reveals archived ones (not persisted).
+    pub filtering: bool,
     /// Named collapsible worktree groups, persisted per project root.
     pub groups: Vec<WorktreeGroup>,
 }
@@ -606,7 +606,7 @@ pub struct AppState {
     /// Panels whose shell process ended on its own (not persisted).
     pub exited_panels: HashSet<AccessibilityId>,
     /// Per-project name filter for the worktrees list, active and archived (not persisted).
-    pub archived_filters: HashMap<ProjectId, String>,
+    pub worktree_filters: HashMap<ProjectId, String>,
     /// Collapsed tab groups per container, `None` is the loose section.
     pub collapsed_tab_groups: HashSet<(Option<ProjectId>, String)>,
     /// Identifies this run in the sessions ring.
@@ -628,7 +628,7 @@ impl AppState {
             modal: None,
             notice: None,
             exited_panels: HashSet::new(),
-            archived_filters: HashMap::new(),
+            worktree_filters: HashMap::new(),
             collapsed_tab_groups: HashSet::new(),
             started_at: Timestamp::now(),
             restoring: false,
@@ -661,20 +661,20 @@ impl AppState {
             archived: prefs.archived,
             worktree_order: prefs.order,
             collapsed: false,
-            show_archived: false,
+            filtering: false,
             groups: prefs.groups,
         });
         id
     }
 
-    /// Toggle archived rows, closing their terminals when hiding.
-    pub fn toggle_show_archived(&mut self, id: ProjectId) {
+    /// Toggle filtering, closing archived worktrees' terminals when it ends.
+    pub fn toggle_filtering(&mut self, id: ProjectId) {
         let hidden_paths = {
             let Some(project) = self.project_mut(id) else {
                 return;
             };
-            project.show_archived = !project.show_archived;
-            if project.show_archived {
+            project.filtering = !project.filtering;
+            if project.filtering {
                 return;
             }
             project
@@ -684,7 +684,7 @@ impl AppState {
                 .map(|wt| wt.path.clone())
                 .collect::<Vec<_>>()
         };
-        self.archived_filters.remove(&id);
+        self.worktree_filters.remove(&id);
         for path in hidden_paths {
             self.close_tabs_in_worktree(&path);
         }
@@ -1063,8 +1063,8 @@ impl AppState {
 
     /// The project's visible sidebar rows, archived last and most recently archived first.
     pub fn worktree_entries(&self, project: &Project) -> Vec<WorktreeEntry> {
-        let filter = if project.show_archived {
-            self.archived_filters
+        let filter = if project.filtering {
+            self.worktree_filters
                 .get(&project.id)
                 .map(|f| f.trim().to_lowercase())
                 .unwrap_or_default()
@@ -1072,7 +1072,7 @@ impl AppState {
             String::new()
         };
         let hidden = |archived: bool, name: &str| {
-            (archived && !project.show_archived)
+            (archived && !project.filtering)
                 || (!filter.is_empty() && !name.to_lowercase().contains(&filter))
         };
         let mut entries: Vec<WorktreeEntry> = Vec::new();
@@ -1629,7 +1629,7 @@ impl AppState {
     /// `forced` also diffs collapsed projects.
     pub fn refresh_worktrees(mut station: AppStation, project_id: ProjectId, forced: bool) {
         let Some((main, skip_diffs, skip_all)) = station.peek().project(project_id).map(|p| {
-            let hidden = if p.show_archived {
+            let hidden = if p.filtering {
                 vec![]
             } else {
                 p.archived.clone()
