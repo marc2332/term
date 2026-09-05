@@ -192,11 +192,6 @@ impl Component for App {
                     Shortcut::ClosePanel => {
                         radio.write_channel(AppChannel::Tabs).close_active_panel();
                     }
-                    Shortcut::CloseOtherPanels => {
-                        radio
-                            .write_channel(AppChannel::Tabs)
-                            .close_all_except_active();
-                    }
                     Shortcut::ToggleSidebar => {
                         radio.write_channel(AppChannel::Tabs).toggle_sidebar();
                     }

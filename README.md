@@ -65,7 +65,6 @@ cargo install --git https://github.com/marc2332/term
 | `Alt+P` | `Option+P` | Split panel vertically (top/bottom) |
 | `Alt++ / Alt+=` | `Option++ / Option+=` | Split panel horizontally (left/right) |
 | `Alt+-` | `Option+-` | Close active panel |
-| `Alt+1` | `Option+1` | Close all panels except active |
 | `Alt+←` | `Option+←` | Focus panel to the left |
 | `Alt+→` | `Option+→` | Focus panel to the right |
 | `Alt+↑` | `Option+↑` | Focus panel above |

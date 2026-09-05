@@ -1390,20 +1390,6 @@ impl AppState {
         Some((new_id, new_handle))
     }
 
-    /// Collapses the current tab to only its active panel, closing all others.
-    pub fn close_all_except_active(&mut self) {
-        if let Some(tab) = self.active_tab_mut() {
-            let active_id = tab.active_panel;
-            let active_leaf = PanelNode::Leaf(
-                active_id,
-                tab.panels.handle(active_id).cloned().unwrap(),
-                tab.panels.panel_task(active_id),
-            );
-            tab.panels = active_leaf;
-            active_id.request_focus();
-        }
-    }
-
     pub fn close_active_panel(&mut self) {
         if let Some((tab_id, panel)) = self.active_tab().map(|tab| (tab.id, tab.active_panel)) {
             self.close_panel(tab_id, panel);

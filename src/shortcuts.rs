@@ -14,7 +14,6 @@ pub enum Shortcut {
     SplitVertical,
     SplitHorizontal,
     ClosePanel,
-    CloseOtherPanels,
     ToggleSidebar,
     Navigate(NavDirection),
     IncreaseFontSize,
@@ -58,7 +57,6 @@ pub fn resolve(event: &KeyboardEventData) -> Option<Shortcut> {
                 Code::KeyP => Some(Shortcut::SplitVertical),
                 Code::Equal | Code::NumpadAdd => Some(Shortcut::SplitHorizontal),
                 Code::Minus | Code::NumpadSubtract => Some(Shortcut::ClosePanel),
-                Code::Digit1 => Some(Shortcut::CloseOtherPanels),
                 Code::KeyB => Some(Shortcut::ToggleSidebar),
                 _ => None,
             }
@@ -67,7 +65,6 @@ pub fn resolve(event: &KeyboardEventData) -> Option<Shortcut> {
                 "p" | "P" => Some(Shortcut::SplitVertical),
                 "+" | "=" => Some(Shortcut::SplitHorizontal),
                 "-" => Some(Shortcut::ClosePanel),
-                "1" => Some(Shortcut::CloseOtherPanels),
                 "b" | "B" => Some(Shortcut::ToggleSidebar),
                 _ => None,
             }
