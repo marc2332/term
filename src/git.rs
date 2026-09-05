@@ -1,5 +1,7 @@
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::OnceLock;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use blocking::unblock;
@@ -24,6 +26,8 @@ pub struct Worktree {
     pub name: String,
     pub path: PathBuf,
     pub is_main: bool,
+    /// Checked out branch, `None` when HEAD is detached.
+    pub branch: Option<String>,
     pub diff: Option<DiffStats>,
     pub last_commit: Option<SystemTime>,
 }
@@ -40,6 +44,7 @@ impl Worktree {
             name: dir_name(&path),
             path,
             is_main: false,
+            branch: None,
             diff: None,
             last_commit: None,
         }
@@ -58,9 +63,10 @@ pub fn is_flatpak() -> bool {
     std::env::var("FLATPAK_ID").is_ok()
 }
 
-/// Whether the host can wrap spawned shells in transient systemd scopes.
+/// Whether the host can wrap spawned shells in transient systemd scopes, probed once.
 pub fn host_has_systemd_run() -> bool {
-    run("systemd-run", &["--version"], Path::new("/")).is_ok()
+    static AVAILABLE: OnceLock<bool> = OnceLock::new();
+    *AVAILABLE.get_or_init(|| run("systemd-run", &["--version"], Path::new("/")).is_ok())
 }
 
 fn host_command(program: &str, cwd: &Path) -> Command {
@@ -149,36 +155,53 @@ pub async fn list_worktrees(
     skip_diffs: Vec<String>,
     skip_all_diffs: bool,
 ) -> Result<Vec<Worktree>> {
-    let mut worktrees = unblock(move || worktree_entries(&main)).await?;
+    let (mut worktrees, commit_times) = unblock(move || {
+        worktree_entries(&main).map(|worktrees| (worktrees, branch_commit_times(&main)))
+    })
+    .await?;
 
-    let details: Vec<(Option<DiffStats>, Option<SystemTime>)> =
-        stream::iter(worktrees.iter().map(|worktree| {
-            let path = worktree.path.clone();
-            let wanted = !(skip_all_diffs || skip_diffs.contains(&worktree.name));
-            async move {
-                if wanted {
-                    unblock(move || (Some(diff_stats(&path)), last_commit_time(&path))).await
-                } else {
-                    (None, None)
-                }
+    let diffs: Vec<Option<DiffStats>> = stream::iter(worktrees.iter().map(|worktree| {
+        let path = worktree.path.clone();
+        let wanted = !(skip_all_diffs || skip_diffs.contains(&worktree.name));
+        async move {
+            if wanted {
+                Some(unblock(move || diff_stats(&path)).await)
+            } else {
+                None
             }
-        }))
-        .buffered(4)
-        .collect()
-        .await;
+        }
+    }))
+    .buffered(4)
+    .collect()
+    .await;
 
-    for (worktree, (diff, last_commit)) in worktrees.iter_mut().zip(details) {
+    for (worktree, diff) in worktrees.iter_mut().zip(diffs) {
         worktree.diff = diff;
-        worktree.last_commit = last_commit;
+        worktree.last_commit = worktree
+            .branch
+            .as_ref()
+            .and_then(|branch| commit_times.get(branch))
+            .copied();
     }
     Ok(worktrees)
 }
 
-/// Committer time of the worktree's latest commit.
-fn last_commit_time(worktree: &Path) -> Option<SystemTime> {
-    let out = run("git", &["log", "-1", "--format=%ct"], worktree).ok()?;
-    let seconds = out.trim().parse::<u64>().ok()?;
-    Some(UNIX_EPOCH + Duration::from_secs(seconds))
+/// Committer time of every local branch's tip, from a single git call.
+fn branch_commit_times(main: &Path) -> HashMap<String, SystemTime> {
+    let format = "--format=%(refname:short) %(committerdate:unix)";
+    let Ok(out) = run("git", &["for-each-ref", format, "refs/heads"], main) else {
+        return HashMap::new();
+    };
+    out.lines()
+        .filter_map(|line| {
+            let (branch, seconds) = line.rsplit_once(' ')?;
+            let seconds = seconds.parse::<u64>().ok()?;
+            Some((
+                branch.to_string(),
+                UNIX_EPOCH + Duration::from_secs(seconds),
+            ))
+        })
+        .collect()
 }
 
 /// Lines added/removed against HEAD (staged + unstaged, binary files ignored).
@@ -203,7 +226,14 @@ fn parse_worktree(block: &str) -> Option<Worktree> {
         .find_map(|line| line.strip_prefix("worktree "))
         .map(PathBuf::from)?;
     path.file_name()?;
-    Some(Worktree::placeholder(path))
+    let branch = block
+        .lines()
+        .find_map(|line| line.strip_prefix("branch refs/heads/"))
+        .map(str::to_string);
+    Some(Worktree {
+        branch,
+        ..Worktree::placeholder(path)
+    })
 }
 
 /// Run blocking work (subprocesses, fs) off the UI thread.
@@ -274,6 +304,8 @@ mod tests {
         assert_eq!(listed[1].name, "feat-login");
         assert!(!listed[1].is_main);
         assert_eq!(listed[1].diff, Some(DiffStats::default()));
+        assert_eq!(listed[1].branch.as_deref(), Some("feat/login"));
+        assert!(listed[1].last_commit.is_some());
 
         let skipped = block_on(list_worktrees(
             trunk.clone(),

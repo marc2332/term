@@ -134,14 +134,14 @@ impl Component for App {
                 }
             });
 
-            // Keep worktree lists and diff stats fresh.
+            // Keep worktree lists and diff stats fresh, one project at a time.
             spawn(async move {
                 loop {
                     Timer::after(Duration::from_secs(10)).await;
                     let project_ids: Vec<_> =
                         station.peek().projects.iter().map(|p| p.id).collect();
                     for project_id in project_ids {
-                        AppState::refresh_worktrees(station, project_id, false);
+                        AppState::refresh_worktrees_now(station, project_id, false).await;
                     }
                 }
             });

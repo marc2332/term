@@ -1611,9 +1611,18 @@ impl AppState {
         Self::refresh_worktrees(station, project_id, false);
     }
 
-    /// Refresh worktrees, writing only on change.
+    /// Refresh worktrees in the background, writing only on change.
     /// `forced` also diffs collapsed projects.
-    pub fn refresh_worktrees(mut station: AppStation, project_id: ProjectId, forced: bool) {
+    pub fn refresh_worktrees(station: AppStation, project_id: ProjectId, forced: bool) {
+        spawn_forever(Self::refresh_worktrees_now(station, project_id, forced));
+    }
+
+    /// Refresh worktrees and wait for the result.
+    pub async fn refresh_worktrees_now(
+        mut station: AppStation,
+        project_id: ProjectId,
+        forced: bool,
+    ) {
         let Some((main, skip_diffs, skip_all)) = station
             .peek()
             .project(project_id)
@@ -1621,23 +1630,21 @@ impl AppState {
         else {
             return;
         };
-        spawn_forever(async move {
-            match git::list_worktrees(main, skip_diffs, skip_all).await {
-                Ok(worktrees) => {
-                    let changed = station
-                        .peek()
-                        .project(project_id)
-                        .is_some_and(|p| p.worktrees != worktrees);
-                    if changed {
-                        let mut state = station.write_channel(AppChannel::Tabs);
-                        if let Some(project) = state.project_mut(project_id) {
-                            project.worktrees = worktrees;
-                        }
+        match git::list_worktrees(main, skip_diffs, skip_all).await {
+            Ok(worktrees) => {
+                let changed = station
+                    .peek()
+                    .project(project_id)
+                    .is_some_and(|p| p.worktrees != worktrees);
+                if changed {
+                    let mut state = station.write_channel(AppChannel::Tabs);
+                    if let Some(project) = state.project_mut(project_id) {
+                        project.worktrees = worktrees;
                     }
                 }
-                Err(e) => station.write_channel(AppChannel::Tabs).notice = Some(e),
             }
-        });
+            Err(e) => station.write_channel(AppChannel::Tabs).notice = Some(e),
+        }
     }
 
     fn restore_tab(mut station: AppStation, saved: &SessionTab, project: Option<ProjectId>) {
