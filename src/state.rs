@@ -212,7 +212,8 @@ impl PanelNode {
             }
             cmd
         };
-        TerminalHandle::new(TerminalId::new(), cmd, Some(10_000)).expect("failed to spawn PTY")
+        TerminalHandle::new(TerminalId::new(), PtyBackend::new(cmd), Some(10_000))
+            .expect("failed to spawn PTY")
     }
 
     pub fn new_leaf(shell: &str, cwd: Option<PathBuf>) -> (AccessibilityId, Self) {
