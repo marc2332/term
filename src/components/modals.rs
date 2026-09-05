@@ -6,6 +6,7 @@ use freya::radio::*;
 
 use crate::config::Config;
 use crate::git;
+use crate::session::RecentProject;
 use crate::state::{AppChannel, AppRadio, AppState, Modal, ProjectId};
 
 #[derive(PartialEq, Clone, Copy)]
@@ -210,14 +211,11 @@ impl Component for AddProjectModal {
         let station = use_radio_station::<AppState, AppChannel>();
         let mut path = use_state(String::new);
         let mut error = use_state(|| None::<String>);
+        let recent = self.show.then(RecentProject::load_all).unwrap_or_default();
 
-        let submit = move |value: String| {
-            let value = value.trim().to_string();
-            if value.is_empty() {
-                return;
-            }
+        let open = move |root: PathBuf| {
             spawn(async move {
-                match git::run_async(move || git::detect_project(&expand_home(&value))).await {
+                match git::run_async(move || git::detect_project(&root)).await {
                     Ok(info) => {
                         close_modal(radio);
                         AppState::open_project(station, info);
@@ -225,6 +223,13 @@ impl Component for AddProjectModal {
                     Err(e) => error.set(Some(e)),
                 }
             });
+        };
+
+        let submit = move |value: String| {
+            let value = value.trim();
+            if !value.is_empty() {
+                open(expand_home(value));
+            }
         };
 
         let pick_folder = move |_| {
@@ -283,7 +288,26 @@ impl Component for AddProjectModal {
                                                     .stroke((200, 200, 200)),
                                             ),
                                     ),
-                            ),
+                            )
+                            .maybe(!recent.is_empty(), |el| {
+                                el.child(
+                                    label()
+                                        .text("Recent projects")
+                                        .font_size(12.)
+                                        .color((150, 150, 150)),
+                                )
+                                .child(
+                                    rect().width(Size::fill()).vertical().spacing(2.).children(
+                                        recent.into_iter().map(|project| {
+                                            RecentProjectRow {
+                                                root: project.root,
+                                                on_open: open.into(),
+                                            }
+                                            .into_element()
+                                        }),
+                                    ),
+                                )
+                            }),
                     )
                     .maybe_child(error.read().as_deref().map(|error| {
                         label()
@@ -293,5 +317,80 @@ impl Component for AddProjectModal {
                             .max_lines(3)
                     }))
             }))
+            .maybe_child(self.show.then(|| {
+                PopupButtons::new()
+                    .child(
+                        Button::new()
+                            .expanded()
+                            .rounded_full()
+                            .on_press(move |_| close_modal(radio))
+                            .child("Cancel"),
+                    )
+                    .child(
+                        Button::new()
+                            .expanded()
+                            .filled()
+                            .rounded_full()
+                            .on_press(move |_| submit(path.read().clone()))
+                            .child("Add"),
+                    )
+            }))
+    }
+}
+
+#[derive(PartialEq, Clone)]
+struct RecentProjectRow {
+    root: PathBuf,
+    on_open: EventHandler<PathBuf>,
+}
+
+impl Component for RecentProjectRow {
+    fn render(&self) -> impl IntoElement {
+        let root = self.root.clone();
+        let on_open = self.on_open.clone();
+
+        Button::new()
+            .flat()
+            .width(Size::fill())
+            .rounded_lg()
+            .hover_background(Color::from_argb(120, 80, 78, 86))
+            .on_press(move |_| on_open.call(root.clone()))
+            .color((200, 200, 200))
+            .child(
+                rect()
+                    .width(Size::fill())
+                    .horizontal()
+                    .spacing(8.)
+                    .content(Content::flex())
+                    .cross_align(Alignment::Center)
+                    .child(
+                        SvgViewer::new(lucide::folder_git_2())
+                            .width(Size::px(14.))
+                            .height(Size::px(14.))
+                            .stroke((150, 150, 150)),
+                    )
+                    .child(
+                        label()
+                            .text(git::dir_name(&self.root))
+                            .font_size(13.)
+                            .color((220, 220, 220)),
+                    )
+                    .child(
+                        OverflowedContent::new()
+                            .width(Size::flex(1.))
+                            .height(Size::auto())
+                            .child(
+                                label()
+                                    .text(self.root.display().to_string())
+                                    .font_size(12.)
+                                    .color((120, 120, 120))
+                                    .max_lines(1),
+                            ),
+                    ),
+            )
+    }
+
+    fn render_key(&self) -> DiffKey {
+        DiffKey::from(&self.root)
     }
 }
