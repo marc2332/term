@@ -27,6 +27,9 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="0.4.8" date="2026-09-05">
+      <description><p>Recent projects and an Add button in the add project popup, worktree filtering improvements, archived worktrees skipped from scans.</p></description>
+    </release>
     <release version="0.4.7" date="2026-08-24">
       <description><p>Update Freya to 0.5.0-rc.4 and switch to its borderless window plugin.</p></description>
     </release>
