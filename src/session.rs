@@ -3,7 +3,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
-use crate::git;
+use crate::flatpak;
 use crate::state::{AppState, PanelNode, Tab, WorktreeGroup};
 
 /// Seconds since the Unix epoch, and how to render them for humans.
@@ -33,7 +33,7 @@ pub struct StateDir;
 
 impl StateDir {
     pub fn path() -> PathBuf {
-        if git::is_flatpak() {
+        if flatpak::is_flatpak() {
             let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
             return PathBuf::from(home).join(".local/state/marcterm");
         }

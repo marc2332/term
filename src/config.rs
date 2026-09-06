@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-use crate::git::is_flatpak;
+use crate::flatpak::is_flatpak;
 
 /// What to show when the app starts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]

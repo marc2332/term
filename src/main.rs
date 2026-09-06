@@ -1,5 +1,6 @@
 mod components;
 mod config;
+mod flatpak;
 mod git;
 mod logging;
 mod session;
@@ -15,7 +16,7 @@ use freya::prelude::*;
 /// Fall back to Adwaita when the host cursor theme isn't reachable in Flatpak.
 #[cfg(target_os = "linux")]
 fn fix_flatpak_cursor_theme() {
-    if !crate::git::is_flatpak() {
+    if !crate::flatpak::is_flatpak() {
         return;
     }
 

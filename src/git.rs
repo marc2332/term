@@ -1,11 +1,14 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
-use std::sync::OnceLock;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use blocking::unblock;
 use futures::stream::{self, StreamExt};
+use gix::bstr::{BString, ByteSlice};
+use gix::diff::blob::pipeline::{Mode, WorktreeRoots};
+use gix::diff::blob::platform::prepare_diff::Operation;
+use gix::diff::blob::{Diff, ResourceKind};
+use gix::object::tree::EntryKind;
 
 pub type Result<T> = std::result::Result<T, String>;
 
@@ -59,61 +62,42 @@ pub struct ProjectInfo {
     pub name: String,
 }
 
-pub fn is_flatpak() -> bool {
-    std::env::var("FLATPAK_ID").is_ok()
-}
-
-/// Whether the host can wrap spawned shells in transient systemd scopes, probed once.
-pub fn host_has_systemd_run() -> bool {
-    static AVAILABLE: OnceLock<bool> = OnceLock::new();
-    *AVAILABLE.get_or_init(|| run("systemd-run", &["--version"], Path::new("/")).is_ok())
-}
-
-fn host_command(program: &str, cwd: &Path) -> Command {
-    if is_flatpak() {
-        let mut cmd = Command::new("flatpak-spawn");
-        cmd.arg("--host");
-        cmd.arg(format!("--directory={}", cwd.display()));
-        cmd.arg(program);
-        cmd
-    } else {
-        let mut cmd = Command::new(program);
-        cmd.current_dir(cwd);
-        cmd
-    }
-}
-
-/// Run `program` on the host (through `flatpak-spawn` when sandboxed), capturing stdout.
-fn run(program: &str, args: &[&str], cwd: &Path) -> Result<String> {
-    let mut cmd = host_command(program, cwd);
-    cmd.args(args);
-    cmd.stdin(Stdio::null());
-    let out = cmd
-        .output()
-        .map_err(|e| format!("failed to run {program}: {e}"))?;
-    if !out.status.success() {
-        let stderr = String::from_utf8_lossy(&out.stderr);
-        return Err(format!(
-            "{program} {} failed: {}",
-            args.join(" "),
-            stderr.trim()
-        ));
-    }
-    Ok(String::from_utf8_lossy(&out.stdout).into_owned())
-}
-
 pub fn dir_name(path: &Path) -> String {
     path.file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_else(|| path.display().to_string())
 }
 
-/// Entries reported by git, main worktree first (git's guaranteed order).
-fn worktree_entries(cwd: &Path) -> Result<Vec<Worktree>> {
-    let out = run("git", &["worktree", "list", "--porcelain"], cwd)?;
-    let mut worktrees: Vec<Worktree> = out.split("\n\n").filter_map(parse_worktree).collect();
-    if let Some(first) = worktrees.first_mut() {
-        first.is_main = true;
+fn git_error(error: impl std::fmt::Display) -> String {
+    error.to_string()
+}
+
+/// The main worktree first, then every linked worktree git knows about.
+fn worktree_entries(main: &Path) -> Result<Vec<Worktree>> {
+    let repo = gix::open(main).map_err(git_error)?;
+    let mut worktrees = vec![Worktree {
+        is_main: true,
+        branch: repo
+            .head_name()
+            .ok()
+            .flatten()
+            .map(|name| name.shorten().to_string()),
+        ..Worktree::placeholder(main.to_path_buf())
+    }];
+
+    for proxy in repo.worktrees().map_err(git_error)? {
+        let Ok(path) = proxy.base() else {
+            continue;
+        };
+        let branch = proxy
+            .into_repo_with_possibly_inaccessible_worktree()
+            .ok()
+            .and_then(|repo| repo.head_name().ok().flatten())
+            .map(|name| name.shorten().to_string());
+        worktrees.push(Worktree {
+            branch,
+            ..Worktree::placeholder(path)
+        });
     }
     Ok(worktrees)
 }
@@ -126,13 +110,15 @@ pub fn detect_project(path: &Path) -> Result<ProjectInfo> {
     if !path.is_dir() {
         return Err(format!("{} is not a directory", path.display()));
     }
-    let entries = worktree_entries(path)
+    let repo = gix::discover(path)
         .map_err(|_| format!("{} is not inside a git repository", path.display()))?;
-    let main = entries
-        .into_iter()
-        .next()
-        .ok_or("git reported no worktrees")?
-        .path;
+    let main = repo
+        .main_repo()
+        .map_err(git_error)?
+        .workdir()
+        .ok_or("bare repositories have no worktree")?
+        .to_path_buf();
+
     let root = match (main.file_name(), main.parent()) {
         (Some(name), Some(parent)) if name == "trunk" => parent.to_path_buf(),
         _ => main.clone(),
@@ -186,65 +172,94 @@ pub async fn list_worktrees(
     Ok(worktrees)
 }
 
-/// Committer time of every local branch's tip, from a single git call.
+/// Committer time of every local branch's tip.
 fn branch_commit_times(main: &Path) -> HashMap<String, SystemTime> {
-    let format = "--format=%(refname:short) %(committerdate:unix)";
-    let Ok(out) = run("git", &["for-each-ref", format, "refs/heads"], main) else {
-        return HashMap::new();
+    let times = || -> Option<HashMap<String, SystemTime>> {
+        let repo = gix::open(main).ok()?;
+        let references = repo.references().ok()?;
+        let branches = references.local_branches().ok()?;
+        Some(
+            branches
+                .flatten()
+                .filter_map(|mut branch| {
+                    let name = branch.name().shorten().to_string();
+                    let seconds = branch.peel_to_commit().ok()?.time().ok()?.seconds;
+                    let seconds = u64::try_from(seconds).ok()?;
+                    Some((name, UNIX_EPOCH + Duration::from_secs(seconds)))
+                })
+                .collect(),
+        )
     };
-    out.lines()
-        .filter_map(|line| {
-            let (branch, seconds) = line.rsplit_once(' ')?;
-            let seconds = seconds.parse::<u64>().ok()?;
-            Some((
-                branch.to_string(),
-                UNIX_EPOCH + Duration::from_secs(seconds),
-            ))
-        })
-        .collect()
+    times().unwrap_or_default()
 }
 
 /// Lines added/removed against HEAD (staged + unstaged, binary files ignored).
 fn diff_stats(worktree: &Path) -> DiffStats {
-    let Ok(out) = run("git", &["diff", "HEAD", "--numstat"], worktree) else {
-        return DiffStats::default();
-    };
-    let mut stats = DiffStats::default();
-    for line in out.lines() {
-        let mut parts = line.split_whitespace();
-        if let (Some(added), Some(removed)) = (parts.next(), parts.next()) {
-            stats.added += added.parse::<u32>().unwrap_or(0);
-            stats.removed += removed.parse::<u32>().unwrap_or(0);
+    let stats = || -> Option<DiffStats> {
+        let repo = gix::open(worktree).ok()?;
+        let head = repo.head_tree().ok()?;
+        let changes = repo
+            .status(gix::progress::Discard)
+            .ok()?
+            .untracked_files(gix::status::UntrackedFiles::None)
+            .tree_index_track_renames(gix::status::tree_index::TrackRenames::Disabled)
+            .index_worktree_rewrites(None)
+            .into_iter(Vec::new())
+            .ok()?;
+        let paths: HashSet<BString> = changes
+            .flatten()
+            .map(|change| change.location().to_owned())
+            .collect();
+
+        let roots = WorktreeRoots {
+            old_root: None,
+            new_root: Some(worktree.to_path_buf()),
+        };
+        let mut cache = repo.diff_resource_cache(Mode::ToGit, roots).ok()?;
+        let null = gix::ObjectId::null(repo.object_hash());
+
+        let mut stats = DiffStats::default();
+        for path in paths {
+            let (id, kind) = match head
+                .lookup_entry_by_path(gix::path::from_bstr(path.as_bstr()))
+                .ok()?
+            {
+                Some(entry) => (entry.id().detach(), entry.mode().kind()),
+                None => (null, EntryKind::Blob),
+            };
+            let Ok(()) =
+                cache.set_resource(id, kind, path.as_bstr(), ResourceKind::OldOrSource, &repo)
+            else {
+                continue;
+            };
+            let Ok(()) = cache.set_resource(
+                null,
+                EntryKind::Blob,
+                path.as_bstr(),
+                ResourceKind::NewOrDestination,
+                &repo,
+            ) else {
+                continue;
+            };
+            let Ok(outcome) = cache.prepare_diff() else {
+                continue;
+            };
+            let Operation::InternalDiff { algorithm } = outcome.operation else {
+                continue;
+            };
+            let diff = Diff::compute(algorithm, &outcome.interned_input());
+            stats.added += diff.count_additions();
+            stats.removed += diff.count_removals();
         }
-    }
-    stats
-}
-
-fn parse_worktree(block: &str) -> Option<Worktree> {
-    let path = block
-        .lines()
-        .find_map(|line| line.strip_prefix("worktree "))
-        .map(PathBuf::from)?;
-    path.file_name()?;
-    let branch = block
-        .lines()
-        .find_map(|line| line.strip_prefix("branch refs/heads/"))
-        .map(str::to_string);
-    Some(Worktree {
-        branch,
-        ..Worktree::placeholder(path)
-    })
-}
-
-/// Run blocking work (subprocesses, fs) off the UI thread.
-pub async fn run_async<T: Send + 'static>(
-    f: impl FnOnce() -> Result<T> + Send + 'static,
-) -> Result<T> {
-    unblock(f).await
+        Some(stats)
+    };
+    stats().unwrap_or_default()
 }
 
 #[cfg(test)]
 mod tests {
+    use std::process::{Command, Stdio};
+
     use futures::executor::block_on;
 
     use super::*;

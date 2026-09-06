@@ -215,7 +215,7 @@ impl Component for AddProjectModal {
 
         let open = move |root: PathBuf| {
             spawn(async move {
-                match git::run_async(move || git::detect_project(&root)).await {
+                match blocking::unblock(move || git::detect_project(&root)).await {
                     Ok(info) => {
                         close_modal(radio);
                         AppState::open_project(station, info);

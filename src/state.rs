@@ -12,6 +12,7 @@ use freya::terminal::*;
 use futures::FutureExt;
 use serde::{Deserialize, Serialize};
 
+use crate::flatpak;
 use crate::git::{self, ProjectInfo, Worktree};
 use crate::session::{PanelLayout, ProjectPrefs, RecentProject, Session, SessionTab, Timestamp};
 
@@ -184,7 +185,7 @@ pub enum PanelNode {
 
 impl PanelNode {
     fn make_handle(shell: &str, cwd: Option<PathBuf>) -> TerminalHandle {
-        let cmd = if git::is_flatpak() {
+        let cmd = if flatpak::is_flatpak() {
             let mut cmd = CommandBuilder::new("flatpak-spawn");
             cmd.args(["--host", "--watch-bus"]);
             cmd.arg("--env=TERM=xterm-256color");
@@ -195,7 +196,7 @@ impl PanelNode {
             }
             // A scope per shell keeps it out of the session helper cgroup,
             // so an OOM kill there cannot take every panel down at once.
-            if git::host_has_systemd_run() {
+            if flatpak::host_has_systemd_run() {
                 cmd.args(["systemd-run", "--user", "--scope", "--quiet", "--collect"]);
             }
             cmd.arg(shell);
@@ -1706,14 +1707,13 @@ impl AppState {
         let active_tab = saved.active_tab;
         spawn_forever(async move {
             let roots: Vec<PathBuf> = saved_projects.iter().map(|p| p.root.clone()).collect();
-            let results = git::run_async(move || {
-                Ok(roots
+            let results = blocking::unblock(move || {
+                roots
                     .iter()
                     .map(|r| git::detect_project(r))
-                    .collect::<Vec<_>>())
+                    .collect::<Vec<_>>()
             })
-            .await
-            .unwrap_or_default();
+            .await;
             let mut skipped = 0;
             let mut opened_roots = Vec::new();
             for (saved_project, result) in saved_projects.iter().zip(results) {

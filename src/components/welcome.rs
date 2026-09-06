@@ -166,7 +166,7 @@ impl Component for RecentProjectRow {
             move |_: Event<PressEventData>| {
                 let root = root.clone();
                 spawn(async move {
-                    match git::run_async(move || git::detect_project(&root)).await {
+                    match blocking::unblock(move || git::detect_project(&root)).await {
                         Ok(info) => AppState::open_project(station, info),
                         Err(e) => station.write_channel(AppChannel::Tabs).notice = Some(e),
                     }
