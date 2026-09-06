@@ -27,6 +27,9 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="0.4.9" date="2026-09-06">
+      <description><p>Read worktrees, branches and diff stats through gitoxide instead of spawning git, which also removes the flatpak-spawn round trips.</p></description>
+    </release>
     <release version="0.4.8" date="2026-09-05">
       <description><p>Recent projects and an Add button in the add project popup, worktree filtering improvements, archived worktrees skipped from scans.</p></description>
     </release>
