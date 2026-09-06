@@ -645,6 +645,14 @@ impl AppState {
         self.projects.iter_mut().find(|p| p.id == id)
     }
 
+    pub fn tab(&self, id: TabId) -> Option<&Tab> {
+        self.tabs.iter().find(|tab| tab.id == id)
+    }
+
+    pub fn tab_mut(&mut self, id: TabId) -> Option<&mut Tab> {
+        self.tabs.iter_mut().find(|tab| tab.id == id)
+    }
+
     /// Register a project (idempotent by root), seeded with its main worktree.
     pub fn add_project(&mut self, info: ProjectInfo) -> ProjectId {
         if let Some(project) = self.projects.iter().find(|p| p.root == info.root) {
@@ -819,7 +827,7 @@ impl AppState {
 
     /// Move the tab into `group` within its container, `None` leaves any group.
     pub fn set_tab_group(&mut self, id: TabId, group: Option<String>) {
-        if let Some(tab) = self.tabs.iter_mut().find(|tab| tab.id == id) {
+        if let Some(tab) = self.tab_mut(id) {
             tab.group = group;
         }
     }
@@ -876,7 +884,7 @@ impl AppState {
 
     /// Move a whole tab group so its members sit right before the target tab.
     pub fn move_tab_group(&mut self, container: Option<ProjectId>, name: &str, target_id: TabId) {
-        let Some(target) = self.tabs.iter().find(|tab| tab.id == target_id) else {
+        let Some(target) = self.tab(target_id) else {
             return;
         };
         let target_project = target.project;
@@ -1241,7 +1249,7 @@ impl AppState {
     }
 
     pub fn rename_tab(&mut self, tab_id: TabId, name: String) {
-        if let Some(tab) = self.tabs.iter_mut().find(|t| t.id == tab_id) {
+        if let Some(tab) = self.tab_mut(tab_id) {
             if name.is_empty() {
                 tab.custom_title = None;
             } else {
@@ -1282,7 +1290,7 @@ impl AppState {
     }
 
     fn is_cyclable(&self, tab_id: TabId) -> bool {
-        let Some(tab) = self.tabs.iter().find(|t| t.id == tab_id) else {
+        let Some(tab) = self.tab(tab_id) else {
             return false;
         };
         tab.project
@@ -1400,7 +1408,7 @@ impl AppState {
 
     pub fn close_panel(&mut self, tab_id: TabId, panel: AccessibilityId) {
         self.exited_panels.remove(&panel);
-        if let Some(tab) = self.tabs.iter_mut().find(|t| t.id == tab_id)
+        if let Some(tab) = self.tab_mut(tab_id)
             && let Some(new_root) = tab.panels.clone().remove_leaf(panel)
         {
             let leaves = new_root.leaves();
@@ -1412,7 +1420,7 @@ impl AppState {
     }
 
     pub fn swap_panels(&mut self, tab_id: TabId, a: AccessibilityId, b: AccessibilityId) {
-        if let Some(tab) = self.tabs.iter_mut().find(|t| t.id == tab_id) {
+        if let Some(tab) = self.tab_mut(tab_id) {
             tab.panels = tab.panels.clone().swap_leaves(a, b);
         }
     }
@@ -1470,8 +1478,7 @@ impl AppState {
                         let title = handle.title().unwrap_or_default();
                         if !title.is_empty() {
                             let mut state = station.write_channel(AppChannel::Tabs);
-                            if let Some(tab) =
-                                state.tabs.iter_mut().find(|t| t.id == tab_id)
+                            if let Some(tab) = state.tab_mut(tab_id)
                                 && tab.active_panel == panel_id
                             {
                                 tab.title = title;
@@ -1481,19 +1488,25 @@ impl AppState {
                     _ = handle.output_received().fuse() => {
                         {
                             let mut state = station.write_channel(AppChannel::Tabs);
-                            if let Some(tab) = state.tabs.iter_mut().find(|t| t.id == tab_id) {
+                            if let Some(tab) = state.tab_mut(tab_id) {
                                 tab.last_output = Instant::now();
                                 tab.outputting = true;
                             }
                         }
 
-                        // Keep consuming output until idle for 1 second.
+                        // Keep consuming output until idle for 1 second, bumping the
+                        // timestamp once per spinner rotation at most.
                         loop {
                             futures::select! {
                                 _ = handle.output_received().fuse() => {
-                                    let mut state = station.write_channel(AppChannel::Tabs);
-                                    if let Some(tab) = state.tabs.iter_mut().find(|t| t.id == tab_id) {
-                                        tab.last_output = Instant::now();
+                                    let stale = station.peek().tab(tab_id).is_some_and(|tab| {
+                                        tab.last_output.elapsed() > Duration::from_millis(650)
+                                    });
+                                    if stale {
+                                        let mut state = station.write_channel(AppChannel::Tabs);
+                                        if let Some(tab) = state.tab_mut(tab_id) {
+                                            tab.last_output = Instant::now();
+                                        }
                                     }
                                 }
                                 _ = Timer::after(idle).fuse() => break,
@@ -1502,7 +1515,7 @@ impl AppState {
 
                         // Only clear if no other panel refreshed the timestamp.
                         let mut state = station.write_channel(AppChannel::Tabs);
-                        if let Some(tab) = state.tabs.iter_mut().find(|t| t.id == tab_id)
+                        if let Some(tab) = state.tab_mut(tab_id)
                             && tab.last_output.elapsed() > idle
                         {
                             tab.outputting = false;

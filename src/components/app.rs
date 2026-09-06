@@ -137,7 +137,7 @@ impl Component for App {
             // Keep worktree lists and diff stats fresh, one project at a time.
             spawn(async move {
                 loop {
-                    Timer::after(Duration::from_secs(10)).await;
+                    Timer::after(Duration::from_secs(30)).await;
                     let project_ids: Vec<_> =
                         station.peek().projects.iter().map(|p| p.id).collect();
                     for project_id in project_ids {

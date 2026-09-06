@@ -68,7 +68,7 @@ impl Component for Panel {
 
         let (is_active, has_multiple_panels, shell_exited) = {
             let state = radio.read();
-            let tab = state.tabs.iter().find(|t| t.id == self.tab_id).unwrap();
+            let tab = state.tab(self.tab_id).unwrap();
             (
                 tab.active_panel == panel_id,
                 !matches!(tab.panels, PanelNode::Leaf(..)),

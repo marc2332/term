@@ -280,9 +280,7 @@ impl Component for TabBar {
                     continue;
                 }
                 let worktree_row = |entry: WorktreeEntry, index: usize, in_group: bool| {
-                    let open_tab = entry
-                        .tab
-                        .and_then(|id| state.tabs.iter().find(|t| t.id == id));
+                    let open_tab = entry.tab.and_then(|id| state.tab(id));
                     let age = match open_tab {
                         Some(tab) => Some(format_age(tab.last_output.elapsed())),
                         None => entry
@@ -1720,17 +1718,16 @@ impl Component for TabButton {
                         return;
                     }
                     let custom_title = custom_title.clone();
-                    let (in_group, path) =
-                        match radio.read().tabs.iter().find(|tab| tab.id == tab_id) {
-                            Some(tab) => (
-                                tab.group.is_some(),
-                                tab.panels
-                                    .handle(tab.active_panel)
-                                    .and_then(|handle| handle.cwd())
-                                    .or_else(|| tab.worktree.clone()),
-                            ),
-                            None => (false, None),
-                        };
+                    let (in_group, path) = match radio.read().tab(tab_id) {
+                        Some(tab) => (
+                            tab.group.is_some(),
+                            tab.panels
+                                .handle(tab.active_panel)
+                                .and_then(|handle| handle.cwd())
+                                .or_else(|| tab.worktree.clone()),
+                        ),
+                        None => (false, None),
+                    };
                     ContextMenu::open_from_down(
                         Menu::new()
                             .map(path, |el, path| el.child(copy_path_item(path)))
