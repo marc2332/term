@@ -3,7 +3,7 @@ name = "marcterm"
 edition = "2024"
 publish = true
 description = "my terminal as you might have guessed by the name"
-version = "0.4.9"
+version = "0.4.10"
 license = "MIT"
 repository = "https://github.com/marc2332/marcterm"
 
@@ -12,7 +12,7 @@ name = "marcterm"
 path = "src/main.rs"
 
 [dependencies]
-freya = { version = "0.5.0-rc.5", features = [
+freya = { git = "https://github.com/marc2332/freya", branch = "fix/vulkan-prevent-double-throttle-wayland", features = [
   "terminal-pty",
   "radio",
   "material-design",
@@ -20,7 +20,7 @@ freya = { version = "0.5.0-rc.5", features = [
   "router",
   "borderless",
 ] }
-freya-performance-plugin = "0.5.0-rc.5"
+freya-performance-plugin = { git = "https://github.com/marc2332/freya", branch = "fix/vulkan-prevent-double-throttle-wayland" }
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

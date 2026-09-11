@@ -27,6 +27,9 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="0.4.10" date="2026-09-11">
+      <description><p>Performance improvements, a freya bump and the loading spinner removed.</p></description>
+    </release>
     <release version="0.4.9" date="2026-09-06">
       <description><p>Read worktrees, branches and diff stats through gitoxide instead of spawning git, which also removes the flatpak-spawn round trips.</p></description>
     </release>
