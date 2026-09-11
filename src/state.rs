@@ -3,7 +3,6 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use async_io::Timer;
 use freya::prelude::{
     AccessibilityId, AccessibilityIdExt, Clipboard, TaskHandle, UseId, spawn_forever,
 };
@@ -512,7 +511,6 @@ pub struct Tab {
     pub custom_title: Option<String>,
     pub panels: PanelNode,
     pub active_panel: AccessibilityId,
-    pub outputting: bool,
     pub last_output: Instant,
     /// Project this tab is filed under, `None` for loose tabs.
     pub project: Option<ProjectId>,
@@ -547,7 +545,6 @@ impl Tab {
             custom_title,
             panels,
             active_panel,
-            outputting: false,
             last_output: Instant::now(),
             project,
             worktree,
@@ -1471,7 +1468,6 @@ impl AppState {
         handle: TerminalHandle,
     ) -> Rc<PanelTask> {
         let task = spawn_forever(async move {
-            let idle = Duration::from_secs(1);
             loop {
                 futures::select! {
                     _ = handle.title_changed().fuse() => {
@@ -1486,39 +1482,14 @@ impl AppState {
                         }
                     }
                     _ = handle.output_received().fuse() => {
-                        {
+                        let stale = station.peek().tab(tab_id).is_some_and(|tab| {
+                            tab.last_output.elapsed() > Duration::from_secs(60)
+                        });
+                        if stale {
                             let mut state = station.write_channel(AppChannel::Tabs);
                             if let Some(tab) = state.tab_mut(tab_id) {
                                 tab.last_output = Instant::now();
-                                tab.outputting = true;
                             }
-                        }
-
-                        // Keep consuming output until idle for 1 second, bumping the
-                        // timestamp once per spinner rotation at most.
-                        loop {
-                            futures::select! {
-                                _ = handle.output_received().fuse() => {
-                                    let stale = station.peek().tab(tab_id).is_some_and(|tab| {
-                                        tab.last_output.elapsed() > Duration::from_millis(650)
-                                    });
-                                    if stale {
-                                        let mut state = station.write_channel(AppChannel::Tabs);
-                                        if let Some(tab) = state.tab_mut(tab_id) {
-                                            tab.last_output = Instant::now();
-                                        }
-                                    }
-                                }
-                                _ = Timer::after(idle).fuse() => break,
-                            }
-                        }
-
-                        // Only clear if no other panel refreshed the timestamp.
-                        let mut state = station.write_channel(AppChannel::Tabs);
-                        if let Some(tab) = state.tab_mut(tab_id)
-                            && tab.last_output.elapsed() > idle
-                        {
-                            tab.outputting = false;
                         }
                     }
                     _ = handle.clipboard_changed().fuse() => {

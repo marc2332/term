@@ -221,7 +221,6 @@ impl Component for TabBar {
                 title: tab.display_title().to_string(),
                 custom_title: tab.custom_title.clone().unwrap_or_default(),
                 is_active: active_id == Some(tab.id),
-                outputting: tab.outputting,
                 collapsed: state.sidebar_collapsed,
                 in_group,
             };
@@ -300,7 +299,6 @@ impl Component for TabBar {
                             id: t.id,
                             index: index_of.get(&t.id).copied().unwrap_or(0),
                             active: active_id == Some(t.id),
-                            outputting: t.outputting,
                         }),
                         tab_title: open_tab
                             .map(|t| t.title.clone())
@@ -991,7 +989,6 @@ struct OpenTab {
     id: TabId,
     index: usize,
     active: bool,
-    outputting: bool,
 }
 
 #[derive(PartialEq, Clone)]
@@ -1071,7 +1068,6 @@ impl Component for WorktreeRow {
 
         let is_open = tab.is_some();
         let is_active = tab.is_some_and(|t| t.active);
-        let outputting = tab.is_some_and(|t| t.outputting);
 
         let background: Color = if is_active {
             Color::from_argb(160, 62, 60, 66)
@@ -1135,7 +1131,6 @@ impl Component for WorktreeRow {
                 .height(Size::fill())
                 .center()
                 .child(match tab {
-                    Some(..) if outputting => loading_indicator(text_color),
                     Some(tab) => label()
                         .text(format!("{}", tab.index + 1))
                         .font_size(14.)
@@ -1202,13 +1197,11 @@ impl Component for WorktreeRow {
                 .width(Size::px(28.))
                 .height(Size::fill())
                 .center()
-                .child(match tab_id {
-                    Some(_) if outputting => loading_indicator(text_color),
-                    _ => icon
-                        .width(Size::px(14.))
+                .child(
+                    icon.width(Size::px(14.))
                         .height(Size::px(14.))
                         .into_element(),
-                });
+                );
 
             rect()
                 .width(Size::fill())
@@ -1576,15 +1569,6 @@ fn close_button(tab_id: TabId, mut radio: AppRadio, icon: SvgViewer) -> Element 
         .into_element()
 }
 
-fn loading_indicator(color: Color) -> Element {
-    rect()
-        .width(Size::px(20.))
-        .height(Size::px(20.))
-        .center()
-        .child(CircularLoader::new().size(14.).primary_color(color))
-        .into_element()
-}
-
 fn rename_input(
     rename_value: State<String>,
     input_a11y_id: AccessibilityId,
@@ -1627,7 +1611,6 @@ struct TabButton {
     title: String,
     custom_title: String,
     is_active: bool,
-    outputting: bool,
     collapsed: bool,
     /// Member of a tab group, indented under its header.
     in_group: bool,
@@ -1638,7 +1621,6 @@ impl Component for TabButton {
         let tab_id = self.tab_id;
         let custom_title = self.custom_title.clone();
         let is_active = self.is_active;
-        let outputting = self.outputting;
         let mut radio = use_radio(AppChannel::Tabs);
         let mut hovered = use_state(|| false);
         let mut editing = use_state(|| false);
@@ -1694,8 +1676,6 @@ impl Component for TabButton {
 
         let trailing: Element = if *hovered.read() {
             close_button(tab_id, radio, SvgViewer::new(lucide::x()))
-        } else if outputting {
-            loading_indicator(text_color)
         } else {
             rect().into_element()
         };
@@ -1781,15 +1761,12 @@ impl Component for TabButton {
                     .width(Size::fill())
                     .height(Size::fill())
                     .center()
-                    .child(if outputting {
-                        loading_indicator(text_color)
-                    } else {
+                    .child(
                         label()
                             .text(format!("{}", self.index + 1))
                             .font_size(14.)
-                            .max_lines(1)
-                            .into_element()
-                    })
+                            .max_lines(1),
+                    )
             } else {
                 rect()
                     .width(Size::fill())
