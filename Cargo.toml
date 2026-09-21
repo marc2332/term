@@ -12,7 +12,7 @@ name = "marcterm"
 path = "src/main.rs"
 
 [dependencies]
-freya = { git = "https://github.com/marc2332/freya", branch = "fix/vulkan-prevent-double-throttle-wayland", features = [
+freya = { git = "https://github.com/marc2332/freya", branch = "main", features = [
   "terminal-pty",
   "radio",
   "material-design",
@@ -20,7 +20,7 @@ freya = { git = "https://github.com/marc2332/freya", branch = "fix/vulkan-preven
   "router",
   "borderless",
 ] }
-freya-performance-plugin = { git = "https://github.com/marc2332/freya", branch = "fix/vulkan-prevent-double-throttle-wayland" }
+freya-metrics-plugin = { git = "https://github.com/marc2332/freya", branch = "main" }
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

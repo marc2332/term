@@ -273,6 +273,7 @@ impl Component for TabBar {
                     collapsed: project.collapsed,
                     has_archived,
                     filtering: project.filtering,
+                    only_active: project.only_active_worktrees,
                     compact: state.sidebar_collapsed,
                 }));
                 if project.collapsed {
@@ -328,42 +329,50 @@ impl Component for TabBar {
                         .then(|| project.group_of(&entry.worktree.name))
                         .flatten()
                 };
-                let mut consumed = vec![false; rows.len()];
                 let mut row_index = 0;
-                for position in 0..rows.len() {
-                    if consumed[position] {
-                        continue;
-                    }
-                    let Some(group_index) = group_of(&rows[position]) else {
-                        items.push(worktree_row(rows[position].clone(), row_index, false));
+                if project.only_active_worktrees {
+                    for entry in rows.into_iter().chain(archived_rows) {
+                        items.push(worktree_row(entry, row_index, false));
                         row_index += 1;
-                        continue;
-                    };
-                    let group = &project.groups[group_index];
-                    let member_indices: Vec<usize> = (position..rows.len())
-                        .filter(|&candidate| {
-                            !consumed[candidate] && group_of(&rows[candidate]) == Some(group_index)
-                        })
-                        .collect();
-                    items.push(SidebarItem::Group(GroupRow {
-                        target: GroupTarget::Worktrees(project.id),
-                        name: group.name.clone(),
-                        index: row_index,
-                        collapsed: group.collapsed,
-                        count: member_indices.len(),
-                        compact: state.sidebar_collapsed,
-                    }));
-                    for member in member_indices {
-                        consumed[member] = true;
-                        if !group.collapsed {
-                            items.push(worktree_row(rows[member].clone(), row_index, true));
+                    }
+                } else {
+                    let mut consumed = vec![false; rows.len()];
+                    for position in 0..rows.len() {
+                        if consumed[position] {
+                            continue;
                         }
+                        let Some(group_index) = group_of(&rows[position]) else {
+                            items.push(worktree_row(rows[position].clone(), row_index, false));
+                            row_index += 1;
+                            continue;
+                        };
+                        let group = &project.groups[group_index];
+                        let member_indices: Vec<usize> = (position..rows.len())
+                            .filter(|&candidate| {
+                                !consumed[candidate]
+                                    && group_of(&rows[candidate]) == Some(group_index)
+                            })
+                            .collect();
+                        items.push(SidebarItem::Group(GroupRow {
+                            target: GroupTarget::Worktrees(project.id),
+                            name: group.name.clone(),
+                            index: row_index,
+                            collapsed: group.collapsed,
+                            count: member_indices.len(),
+                            compact: state.sidebar_collapsed,
+                        }));
+                        for member in member_indices {
+                            consumed[member] = true;
+                            if !group.collapsed {
+                                items.push(worktree_row(rows[member].clone(), row_index, true));
+                            }
+                            row_index += 1;
+                        }
+                    }
+                    for entry in archived_rows {
+                        items.push(worktree_row(entry, row_index, false));
                         row_index += 1;
                     }
-                }
-                for entry in archived_rows {
-                    items.push(worktree_row(entry, row_index, false));
-                    row_index += 1;
                 }
                 tab_section(
                     &mut items,
@@ -780,6 +789,7 @@ struct ProjectHeader {
     collapsed: bool,
     has_archived: bool,
     filtering: bool,
+    only_active: bool,
     compact: bool,
 }
 
@@ -788,6 +798,7 @@ impl Component for ProjectHeader {
         let id = self.id;
         let has_archived = self.has_archived;
         let filtering = self.filtering;
+        let only_active = self.only_active;
         let mut radio = use_radio(AppChannel::Tabs);
         let station = use_radio_station::<AppState, AppChannel>();
         let mut hovered = use_state(|| false);
@@ -858,6 +869,19 @@ impl Component for ProjectHeader {
                             AppState::create_plain_tab(station, Some(id));
                         },
                     ))
+                    .child({
+                        let (icon, tooltip) = if only_active {
+                            (lucide::list(), "Show all worktrees")
+                        } else {
+                            (lucide::activity(), "Show only active worktrees")
+                        };
+                        header_action(SvgViewer::new(icon), tooltip, move |e| {
+                            e.stop_propagation();
+                            radio
+                                .write_channel(AppChannel::Tabs)
+                                .toggle_only_active_worktrees(id);
+                        })
+                    })
                     .child(header_action(
                         SvgViewer::new(lucide::arrow_down_up()),
                         "Sort worktrees",

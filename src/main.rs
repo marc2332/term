@@ -89,8 +89,9 @@ fn main() {
         );
 
     if cli.fps {
-        launch_config = launch_config
-            .with_plugin(freya_performance_plugin::PerformanceOverlayPlugin::default());
+        launch_config = launch_config.with_plugin(
+            freya_metrics_plugin::MetricsPlugin::default().with_visible_performance(true),
+        );
     }
 
     launch(launch_config);

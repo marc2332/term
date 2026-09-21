@@ -67,6 +67,8 @@ pub struct Project {
     pub filtering: bool,
     /// Named collapsible worktree groups, persisted per project root.
     pub groups: Vec<WorktreeGroup>,
+    /// Show only worktrees with an open tab.
+    pub only_active_worktrees: bool,
 }
 
 impl Project {
@@ -670,6 +672,7 @@ impl AppState {
             collapsed: false,
             filtering: false,
             groups: prefs.groups,
+            only_active_worktrees: false,
         });
         id
     }
@@ -1054,6 +1057,12 @@ impl AppState {
         self.set_archived(id, list);
     }
 
+    pub fn toggle_only_active_worktrees(&mut self, id: ProjectId) {
+        if let Some(project) = self.project_mut(id) {
+            project.only_active_worktrees = !project.only_active_worktrees;
+        }
+    }
+
     /// Close the project's worktree tabs with no output for over an hour.
     pub fn sleep_old_worktrees(&mut self, id: ProjectId) {
         self.retain_tabs(|tab| {
@@ -1092,6 +1101,9 @@ impl AppState {
             let tab = self
                 .tab_for_worktree(project.id, &worktree.path)
                 .map(|t| t.id);
+            if project.only_active_worktrees && tab.is_none() {
+                continue;
+            }
             let entry = WorktreeEntry {
                 worktree,
                 tab,

@@ -198,7 +198,7 @@ impl Component for Panel {
                                 is_pressed.set(true);
                                 click_origin.set(Some((row as usize, col as usize)));
                                 let selection_type =
-                                    match EventsCombos::pressed(event.element_location) {
+                                    match EventsCombos::<()>::pressed(event.element_location) {
                                         PressEventType::Double => SelectionType::Semantic,
                                         PressEventType::Triple => SelectionType::Lines,
                                         _ => SelectionType::Simple,
