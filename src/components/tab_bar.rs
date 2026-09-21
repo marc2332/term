@@ -1501,7 +1501,7 @@ impl Component for WorktreeFilterRow {
                     .border_fill(Color::TRANSPARENT)
                     .focus_border_fill(Color::TRANSPARENT)
                     .corner_radius(CornerRadius::new_all(8.))
-                    .inner_margin(Gaps::new(8., 8., 8., 2.))
+                    .padding(Gaps::new(8., 8., 8., 2.))
                     .leading(
                         rect()
                             .width(Size::px(36.))
@@ -1608,7 +1608,7 @@ fn rename_input(
         .focus_background(Color::TRANSPARENT)
         .border_fill(Color::TRANSPARENT)
         .focus_border_fill(Color::TRANSPARENT)
-        .inner_margin(Gaps::new(0., 0., 0., 0.))
+        .padding(Gaps::new(0., 0., 0., 0.))
         .on_pre_key_down(move |e: Event<KeyboardEventData>| match &e.key {
             Key::Named(NamedKey::Enter) => {
                 input_a11y_id.request_unfocus();
