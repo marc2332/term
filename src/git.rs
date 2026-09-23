@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use blocking::unblock;
@@ -9,6 +10,7 @@ use gix::diff::blob::pipeline::{Mode, WorktreeRoots};
 use gix::diff::blob::platform::prepare_diff::Operation;
 use gix::diff::blob::{Diff, ResourceKind};
 use gix::object::tree::EntryKind;
+use serde::Deserialize;
 
 pub type Result<T> = std::result::Result<T, String>;
 
@@ -24,6 +26,21 @@ impl DiffStats {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PullRequestStatus {
+    Open,
+    Draft,
+    Merged,
+    Closed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PullRequestInfo {
+    pub number: u64,
+    pub status: PullRequestStatus,
+    pub url: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Worktree {
     pub name: String,
@@ -33,6 +50,7 @@ pub struct Worktree {
     pub branch: Option<String>,
     pub diff: Option<DiffStats>,
     pub last_commit: Option<SystemTime>,
+    pub pull_request: Option<PullRequestInfo>,
 }
 
 impl Worktree {
@@ -50,6 +68,7 @@ impl Worktree {
             branch: None,
             diff: None,
             last_commit: None,
+            pull_request: None,
         }
     }
 }
@@ -141,8 +160,19 @@ pub async fn list_worktrees(
     skip_diffs: Vec<String>,
     skip_all_diffs: bool,
 ) -> Result<Vec<Worktree>> {
-    let (mut worktrees, commit_times) = unblock(move || {
-        worktree_entries(&main).map(|worktrees| (worktrees, branch_commit_times(&main)))
+    let archived = skip_diffs.clone();
+    let (mut worktrees, commit_times, pull_requests) = unblock(move || {
+        worktree_entries(&main).map(|worktrees| {
+            let commit_times = branch_commit_times(&main);
+            let pull_requests = if worktrees.iter().any(|worktree| {
+                !worktree.is_main && !archived.contains(&worktree.name) && worktree.branch.is_some()
+            }) {
+                pull_requests(&main)
+            } else {
+                HashMap::new()
+            };
+            (worktrees, commit_times, pull_requests)
+        })
     })
     .await?;
 
@@ -163,6 +193,12 @@ pub async fn list_worktrees(
 
     for (worktree, diff) in worktrees.iter_mut().zip(diffs) {
         worktree.diff = diff;
+        worktree.pull_request = worktree
+            .branch
+            .as_ref()
+            .filter(|_| !worktree.is_main && !skip_diffs.contains(&worktree.name))
+            .and_then(|branch| pull_requests.get(branch))
+            .cloned();
         worktree.last_commit = worktree
             .branch
             .as_ref()
@@ -170,6 +206,65 @@ pub async fn list_worktrees(
             .copied();
     }
     Ok(worktrees)
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PullRequest {
+    number: u64,
+    head_ref_name: String,
+    state: PullRequestState,
+    is_draft: bool,
+    url: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+enum PullRequestState {
+    Open,
+    Merged,
+    Closed,
+}
+
+fn pull_requests(main: &Path) -> HashMap<String, PullRequestInfo> {
+    let Ok(output) = Command::new("gh")
+        .args([
+            "pr",
+            "list",
+            "--state",
+            "all",
+            "--limit",
+            "1000",
+            "--json",
+            "number,headRefName,state,isDraft,url",
+        ])
+        .current_dir(main)
+        .output()
+    else {
+        return HashMap::new();
+    };
+    if !output.status.success() {
+        return HashMap::new();
+    }
+    let mut numbers = HashMap::new();
+    for pull_request in
+        serde_json::from_slice::<Vec<PullRequest>>(&output.stdout).unwrap_or_default()
+    {
+        let status = match pull_request.state {
+            PullRequestState::Merged => PullRequestStatus::Merged,
+            PullRequestState::Closed => PullRequestStatus::Closed,
+            PullRequestState::Open if pull_request.is_draft => PullRequestStatus::Draft,
+            PullRequestState::Open => PullRequestStatus::Open,
+        };
+        numbers
+            .entry(pull_request.head_ref_name)
+            .or_insert(PullRequestInfo {
+                number: pull_request.number,
+                status,
+                url: pull_request.url,
+            });
+    }
+    numbers
 }
 
 /// Committer time of every local branch's tip.

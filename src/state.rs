@@ -12,7 +12,7 @@ use futures::FutureExt;
 use serde::{Deserialize, Serialize};
 
 use crate::flatpak;
-use crate::git::{self, ProjectInfo, Worktree};
+use crate::git::{self, ProjectInfo, PullRequestStatus, Worktree};
 use crate::session::{PanelLayout, ProjectPrefs, RecentProject, Session, SessionTab, Timestamp};
 
 #[derive(PartialEq)]
@@ -700,7 +700,7 @@ impl AppState {
         }
     }
 
-    /// Sort worktrees by group, then changes, then open state, then branch kind and recent output.
+    /// Sort worktrees within groups by PR status, then open tabs and changes.
     pub fn sort_worktrees(&mut self, id: ProjectId) {
         let Some(project) = self.project(id) else {
             return;
@@ -713,8 +713,20 @@ impl AppState {
         worktrees.sort_by_key(|wt| {
             let tab = self.tab_for_worktree(id, &wt.path);
             let clean = wt.diff.is_none_or(|d| d.is_clean());
+            let pr_rank = match wt
+                .pull_request
+                .as_ref()
+                .map(|pull_request| pull_request.status)
+            {
+                Some(PullRequestStatus::Open) => 0,
+                Some(PullRequestStatus::Draft) => 1,
+                Some(PullRequestStatus::Merged) => 2,
+                Some(PullRequestStatus::Closed) => 3,
+                None => 4,
+            };
             (
                 project.group_of(&wt.name).unwrap_or(usize::MAX),
+                pr_rank,
                 tab.is_none(),
                 clean,
                 BranchKind::of(wt),

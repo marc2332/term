@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use crate::components::titlebar::Titlebar;
-use crate::git::Worktree;
+use crate::git::{PullRequestStatus, Worktree};
 use crate::state::{
     AppChannel, AppRadio, AppState, AppStation, Modal, ProjectId, TabId, WorktreeEntry,
 };
@@ -301,9 +301,6 @@ impl Component for TabBar {
                             index: index_of.get(&t.id).copied().unwrap_or(0),
                             active: active_id == Some(t.id),
                         }),
-                        tab_title: open_tab
-                            .map(|t| t.title.clone())
-                            .filter(|title| !title.is_empty()),
                         age,
                         compact: state.sidebar_collapsed,
                     })
@@ -943,6 +940,16 @@ fn open_worktree_menu(
         .is_some_and(|project| project.group_of(&worktree.name).is_some());
     let menu = Menu::new()
         .child(copy_path_item(worktree.path.clone()))
+        .map(worktree.pull_request.as_ref(), |el, pull_request| {
+            let url = pull_request.url.clone();
+            el.child(menu_item(
+                SvgViewer::new(lucide::external_link()),
+                "Open on GitHub",
+                move || {
+                    let _ = open::that(&url);
+                },
+            ))
+        })
         .map(tab_id, |el, tab_id| {
             el.child(menu_item(
                 SvgViewer::new(lucide::moon()),
@@ -951,6 +958,32 @@ fn open_worktree_menu(
                     radio
                         .write_channel(AppChannel::Tabs)
                         .close_tab_by_id(tab_id);
+                },
+            ))
+        })
+        .maybe(!is_main && !archived, |el| {
+            el.maybe(in_group, |el| {
+                let name = worktree.name.clone();
+                el.child(menu_item(
+                    SvgViewer::new(lucide::folder_minus()),
+                    "Remove from group",
+                    move || {
+                        radio
+                            .write_channel(AppChannel::Tabs)
+                            .remove_worktree_from_group(project_id, &name);
+                    },
+                ))
+            })
+            .child(menu_item(
+                SvgViewer::new(lucide::folder_plus()),
+                "New group",
+                {
+                    let name = worktree.name.clone();
+                    move || {
+                        radio
+                            .write_channel(AppChannel::Tabs)
+                            .create_worktree_group(project_id, &name);
+                    }
                 },
             ))
         })
@@ -978,32 +1011,6 @@ fn open_worktree_menu(
                     state.set_archived(project_id, list);
                 }
             }))
-        })
-        .maybe(!is_main && !archived, |el| {
-            el.maybe(in_group, |el| {
-                let name = worktree.name.clone();
-                el.child(menu_item(
-                    SvgViewer::new(lucide::folder_minus()),
-                    "Remove from group",
-                    move || {
-                        radio
-                            .write_channel(AppChannel::Tabs)
-                            .remove_worktree_from_group(project_id, &name);
-                    },
-                ))
-            })
-            .child(menu_item(
-                SvgViewer::new(lucide::folder_plus()),
-                "New group",
-                {
-                    let name = worktree.name.clone();
-                    move || {
-                        radio
-                            .write_channel(AppChannel::Tabs)
-                            .create_worktree_group(project_id, &name);
-                    }
-                },
-            ))
         });
     ContextMenu::open_from_down(menu);
 }
@@ -1023,7 +1030,6 @@ struct WorktreeRow {
     archived: bool,
     worktree: Worktree,
     tab: Option<OpenTab>,
-    tab_title: Option<String>,
     /// Time since the tab's last output, or since the last commit when asleep, like "1h".
     age: Option<String>,
     compact: bool,
@@ -1032,14 +1038,8 @@ struct WorktreeRow {
 }
 
 impl WorktreeRow {
-    /// Taller when the row has an open tab or uncommitted changes.
     fn height(&self) -> f32 {
-        let dirty = self.worktree.diff.is_some_and(|diff| !diff.is_clean());
-        if self.compact {
-            28.
-        } else if self.tab.is_some() {
-            if dirty { 50. } else { 44. }
-        } else if dirty {
+        if !self.compact && self.worktree.diff.is_some_and(|diff| !diff.is_clean()) {
             44.
         } else {
             28.
@@ -1182,20 +1182,38 @@ impl Component for WorktreeRow {
                         .cross_align(Alignment::Center)
                         .spacing(6.)
                         .child(worktree_name_label(&self.worktree))
+                        .map(self.worktree.pull_request.as_ref(), |el, pull_request| {
+                            let (status, background, color) = match pull_request.status {
+                                PullRequestStatus::Open => {
+                                    ("For review", (65, 80, 72), (160, 220, 175))
+                                }
+                                PullRequestStatus::Draft => {
+                                    ("Draft", (72, 72, 78), (185, 185, 195))
+                                }
+                                PullRequestStatus::Merged => {
+                                    ("Merged", (77, 62, 95), (200, 170, 230))
+                                }
+                                PullRequestStatus::Closed => {
+                                    ("Closed", (88, 60, 62), (230, 165, 165))
+                                }
+                            };
+                            el.child(
+                                rect()
+                                    .padding((2., 6.))
+                                    .corner_radius(CornerRadius::new_all(10.))
+                                    .background(background)
+                                    .child(
+                                        label()
+                                            .text(format!("#{} {status}", pull_request.number))
+                                            .font_size(11.)
+                                            .color(color),
+                                    ),
+                            )
+                        })
                         .map(self.age.clone(), |el, age| {
                             el.child(label().text(age).font_size(11.).color((130, 130, 130)))
                         }),
                 )
-                .map(self.tab_title.clone(), |el, title| {
-                    el.child(
-                        label()
-                            .text(title)
-                            .width(Size::fill())
-                            .color((130, 130, 130))
-                            .max_lines(1)
-                            .text_overflow(TextOverflow::Ellipsis),
-                    )
-                })
                 .map(diff, |el, diff| {
                     el.child(
                         rect()
