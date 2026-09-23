@@ -1016,11 +1016,11 @@ fn open_worktree_menu(
 }
 
 fn pull_request_badge(pull_request: &PullRequestInfo) -> impl IntoElement {
-    let (status, background, color) = match pull_request.status {
-        PullRequestStatus::Open => ("For review", (65, 80, 72), (160, 220, 175)),
-        PullRequestStatus::Draft => ("Draft", (72, 72, 78), (185, 185, 195)),
-        PullRequestStatus::Merged => ("Merged", (77, 62, 95), (200, 170, 230)),
-        PullRequestStatus::Closed => ("Closed", (88, 60, 62), (230, 165, 165)),
+    let (background, color) = match pull_request.status {
+        PullRequestStatus::Open => ((65, 80, 72), (160, 220, 175)),
+        PullRequestStatus::Draft => ((72, 72, 78), (185, 185, 195)),
+        PullRequestStatus::Merged => ((77, 62, 95), (200, 170, 230)),
+        PullRequestStatus::Closed => ((88, 60, 62), (230, 165, 165)),
     };
 
     rect()
@@ -1029,7 +1029,7 @@ fn pull_request_badge(pull_request: &PullRequestInfo) -> impl IntoElement {
         .background(background)
         .child(
             label()
-                .text(format!("#{} {status}", pull_request.number))
+                .text(format!("#{}", pull_request.number))
                 .font_size(11.)
                 .color(color),
         )
