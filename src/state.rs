@@ -708,28 +708,26 @@ impl AppState {
         let mut worktrees: Vec<Worktree> = project
             .sorted_worktrees()
             .into_iter()
-            .filter(|wt| !wt.is_main)
+            .filter(|worktree| !worktree.is_main)
             .collect();
-        worktrees.sort_by_key(|wt| {
-            let tab = self.tab_for_worktree(id, &wt.path);
-            let clean = wt.diff.is_none_or(|d| d.is_clean());
-            let pr_rank = match wt
-                .pull_request
-                .as_ref()
-                .map(|pull_request| pull_request.status)
-            {
-                Some(PullRequestStatus::Open) => 0,
-                Some(PullRequestStatus::Draft) => 1,
-                Some(PullRequestStatus::Merged) => 2,
-                Some(PullRequestStatus::Closed) => 3,
+        worktrees.sort_by_key(|worktree| {
+            let tab = self.tab_for_worktree(id, &worktree.path);
+            let clean = worktree.diff.is_none_or(|diff| diff.is_clean());
+            let pull_request_rank = match worktree.pull_request.as_ref() {
+                Some(pull_request) => match pull_request.status {
+                    PullRequestStatus::Open => 0,
+                    PullRequestStatus::Draft => 1,
+                    PullRequestStatus::Merged => 2,
+                    PullRequestStatus::Closed => 3,
+                },
                 None => 4,
             };
             (
-                project.group_of(&wt.name).unwrap_or(usize::MAX),
-                pr_rank,
+                project.group_of(&worktree.name).unwrap_or(usize::MAX),
+                pull_request_rank,
                 tab.is_none(),
                 clean,
-                BranchKind::of(wt),
+                BranchKind::of(worktree),
                 std::cmp::Reverse(tab.map(|t| t.last_output)),
             )
         });

@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use crate::components::titlebar::Titlebar;
-use crate::git::{PullRequestStatus, Worktree};
+use crate::git::{PullRequestInfo, PullRequestStatus, Worktree};
 use crate::state::{
     AppChannel, AppRadio, AppState, AppStation, Modal, ProjectId, TabId, WorktreeEntry,
 };
@@ -1015,6 +1015,26 @@ fn open_worktree_menu(
     ContextMenu::open_from_down(menu);
 }
 
+fn pull_request_badge(pull_request: &PullRequestInfo) -> impl IntoElement {
+    let (status, background, color) = match pull_request.status {
+        PullRequestStatus::Open => ("For review", (65, 80, 72), (160, 220, 175)),
+        PullRequestStatus::Draft => ("Draft", (72, 72, 78), (185, 185, 195)),
+        PullRequestStatus::Merged => ("Merged", (77, 62, 95), (200, 170, 230)),
+        PullRequestStatus::Closed => ("Closed", (88, 60, 62), (230, 165, 165)),
+    };
+
+    rect()
+        .padding((2., 6.))
+        .corner_radius(CornerRadius::new_all(10.))
+        .background(background)
+        .child(
+            label()
+                .text(format!("#{} {status}", pull_request.number))
+                .font_size(11.)
+                .color(color),
+        )
+}
+
 #[derive(PartialEq, Clone, Copy)]
 struct OpenTab {
     id: TabId,
@@ -1183,32 +1203,7 @@ impl Component for WorktreeRow {
                         .spacing(6.)
                         .child(worktree_name_label(&self.worktree))
                         .map(self.worktree.pull_request.as_ref(), |el, pull_request| {
-                            let (status, background, color) = match pull_request.status {
-                                PullRequestStatus::Open => {
-                                    ("For review", (65, 80, 72), (160, 220, 175))
-                                }
-                                PullRequestStatus::Draft => {
-                                    ("Draft", (72, 72, 78), (185, 185, 195))
-                                }
-                                PullRequestStatus::Merged => {
-                                    ("Merged", (77, 62, 95), (200, 170, 230))
-                                }
-                                PullRequestStatus::Closed => {
-                                    ("Closed", (88, 60, 62), (230, 165, 165))
-                                }
-                            };
-                            el.child(
-                                rect()
-                                    .padding((2., 6.))
-                                    .corner_radius(CornerRadius::new_all(10.))
-                                    .background(background)
-                                    .child(
-                                        label()
-                                            .text(format!("#{} {status}", pull_request.number))
-                                            .font_size(11.)
-                                            .color(color),
-                                    ),
-                            )
+                            el.child(pull_request_badge(pull_request))
                         })
                         .map(self.age.clone(), |el, age| {
                             el.child(label().text(age).font_size(11.).color((130, 130, 130)))
