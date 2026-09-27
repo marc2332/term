@@ -27,6 +27,9 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="0.5.0" date="2026-09-27">
+      <description><p>Update Freya to the latest main branch commit.</p></description>
+    </release>
     <release version="0.4.11" date="2026-09-21">
       <description><p>Update Freya to 0.5.0-rc.7.</p></description>
     </release>
