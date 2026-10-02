@@ -299,7 +299,7 @@ fn branch_commit_times(main: &Path) -> HashMap<String, SystemTime> {
     times().unwrap_or_default()
 }
 
-/// Lines added/removed against HEAD (staged + unstaged, binary files ignored).
+/// Lines added/removed against HEAD (including untracked files, binary files ignored).
 fn diff_stats(worktree: &Path) -> DiffStats {
     let stats = || -> Option<DiffStats> {
         let repo = gix::open(worktree).ok()?;
@@ -307,7 +307,7 @@ fn diff_stats(worktree: &Path) -> DiffStats {
         let changes = repo
             .status(gix::progress::Discard)
             .ok()?
-            .untracked_files(gix::status::UntrackedFiles::None)
+            .untracked_files(gix::status::UntrackedFiles::Files)
             .tree_index_track_renames(gix::status::tree_index::TrackRenames::Disabled)
             .index_worktree_rewrites(None)
             .into_iter(Vec::new())
@@ -439,6 +439,27 @@ mod tests {
         std::fs::write(wt_path.join("file.txt"), "hello\nworld\n").unwrap();
         let stats = diff_stats(&wt_path);
         assert_eq!((stats.added, stats.removed), (1, 0));
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn diff_stats_includes_new_files() {
+        let root = make_project("new-files");
+        let trunk = root.join("trunk");
+        std::fs::create_dir_all(trunk.join("new-directory")).unwrap();
+        std::fs::write(trunk.join("new-directory/new.txt"), "first\nsecond\n").unwrap();
+        std::fs::write(trunk.join(".gitignore"), "ignored.txt\n").unwrap();
+        sh(&trunk, "git add .gitignore");
+        std::fs::write(trunk.join("ignored.txt"), "ignored\n").unwrap();
+        std::fs::write(trunk.join("binary.bin"), b"\0binary\n").unwrap();
+
+        let stats = diff_stats(&trunk);
+        assert_eq!((stats.added, stats.removed), (3, 0));
+
+        sh(&trunk, "git add new-directory/new.txt");
+        let stats = diff_stats(&trunk);
+        assert_eq!((stats.added, stats.removed), (3, 0));
 
         let _ = std::fs::remove_dir_all(&root);
     }
