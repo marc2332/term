@@ -229,7 +229,7 @@ impl Component for Panel {
                             }
                         }
                     })
-                    .on_global_pointer_press({
+                    .on_global_pointer_up({
                         let handle = handle.clone();
                         move |event: Event<PointerEventData>| {
                             if !*is_pressed.read() {
