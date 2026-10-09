@@ -3,7 +3,7 @@ name = "marcterm"
 edition = "2024"
 publish = true
 description = "my terminal as you might have guessed by the name"
-version = "0.5.1"
+version = "0.5.2"
 license = "MIT"
 repository = "https://github.com/marc2332/marcterm"
 
@@ -12,7 +12,7 @@ name = "marcterm"
 path = "src/main.rs"
 
 [dependencies]
-freya = { git = "https://github.com/marc2332/freya", rev = "7b8cd042bdeb2cbcd22feef874595ef2384cd84b", features = [
+freya = { version = "0.5.0-rc.9", features = [
   "terminal-pty",
   "radio",
   "material-design",
@@ -20,7 +20,7 @@ freya = { git = "https://github.com/marc2332/freya", rev = "7b8cd042bdeb2cbcd22f
   "router",
   "borderless",
 ] }
-freya-metrics-plugin = { git = "https://github.com/marc2332/freya", rev = "7b8cd042bdeb2cbcd22feef874595ef2384cd84b" }
+freya-metrics-plugin = "0.5.0-rc.9"
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

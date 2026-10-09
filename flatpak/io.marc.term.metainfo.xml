@@ -27,6 +27,9 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="0.5.2" date="2026-10-09">
+      <description><p>Use Freya 0.5.0-rc.9 from crates.io.</p></description>
+    </release>
     <release version="0.5.1" date="2026-10-09">
       <description><p>Update Freya to 0.5.0-rc.9.</p></description>
     </release>
