@@ -96,6 +96,6 @@ jobs:
           archive="$RUNNER_TEMP/marcterm-release/marcterm-$RELEASE_TAG-x86_64-linux.tar.zst"
           gh release create "$RELEASE_TAG" "$archive" "$archive.sha256" \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --title "Marcterm $RELEASE_TAG" \
+            --title "$RELEASE_TAG" \
             --draft
           gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false
