@@ -4,7 +4,7 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use freya::prelude::{
-    AccessibilityId, AccessibilityIdExt, Clipboard, TaskHandle, UseId, spawn_forever,
+    AccessibilityId, AccessibilityIdExt, Clipboard, TaskHandle, UseId, spawn_in_window,
 };
 use freya::radio::{Radio, RadioChannel, RadioStation};
 use freya::terminal::*;
@@ -1489,7 +1489,7 @@ impl AppState {
         panel_id: AccessibilityId,
         handle: TerminalHandle,
     ) -> Rc<PanelTask> {
-        let task = spawn_forever(async move {
+        let task = spawn_in_window(async move {
             loop {
                 futures::select! {
                     _ = handle.title_changed().fuse() => {
@@ -1622,7 +1622,7 @@ impl AppState {
     /// Refresh worktrees in the background, writing only on change.
     /// `forced` also diffs collapsed projects.
     pub fn refresh_worktrees(station: AppStation, project_id: ProjectId, forced: bool) {
-        spawn_forever(Self::refresh_worktrees_now(station, project_id, forced));
+        spawn_in_window(Self::refresh_worktrees_now(station, project_id, forced));
     }
 
     /// Refresh worktrees and wait for the result.
@@ -1711,7 +1711,7 @@ impl AppState {
         let saved_projects = saved.projects;
         let loose_tabs = saved.loose_tabs;
         let active_tab = saved.active_tab;
-        spawn_forever(async move {
+        spawn_in_window(async move {
             let roots: Vec<PathBuf> = saved_projects.iter().map(|p| p.root.clone()).collect();
             let results = blocking::unblock(move || {
                 roots

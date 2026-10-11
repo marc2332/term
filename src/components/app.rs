@@ -295,7 +295,7 @@ fn app_backdrop() -> Rect {
                     .stop((Color::from_argb(0, r, g, b), 95.)),
             )
     };
-    let window = *Platform::get().root_size.read();
+    let window = *Platform::get().current_window().root_size.read();
     let at = |left: f32, top: f32| Position::new_absolute().left(left).top(top);
     let from_right = |right: f32, top: f32| Position::new_absolute().right(right).top(top);
     let centered = |size: f32, top: f32| at(window.width / 2. - size / 2., top);

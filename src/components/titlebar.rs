@@ -21,7 +21,7 @@ impl Component for Titlebar {
         let window_id = Platform::window_id();
 
         use_side_effect(move || {
-            let _ = Platform::get().root_size.read();
+            let _ = Platform::get().current_window().root_size.read();
             Platform::get().with_window(window_id, move |window| {
                 if let Some(mut maximized) = maximized.try_write() {
                     *maximized = window.is_maximized();
