@@ -7,4 +7,4 @@ Terminal=false
 Type=Application
 Categories=System;TerminalEmulator;
 Keywords=terminal;console;shell;command;
-StartupWMClass=marcterm
+StartupWMClass=io.marc.term

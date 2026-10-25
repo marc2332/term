@@ -1,7 +1,5 @@
 use serde::Deserialize;
 
-use crate::flatpak::is_flatpak;
-
 /// What to show when the app starts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -36,27 +34,11 @@ pub struct Config {
 }
 
 fn default_shell() -> String {
-    let shell = if is_flatpak() {
-        host_login_shell()
-    } else {
-        std::env::var("SHELL")
-            .ok()
-            .filter(|shell| !shell.is_empty())
-            .or_else(login_shell)
-    };
-    shell.unwrap_or_else(|| "bash".to_string())
-}
-
-/// The host's login shell of record, as the sandbox misreports `/bin/sh` in `$SHELL` and passwd.
-fn host_login_shell() -> Option<String> {
-    let user = std::env::var("USER").ok()?;
-    let output = std::process::Command::new("flatpak-spawn")
-        .args(["--host", "getent", "passwd", &user])
-        .output()
-        .ok()?;
-    let passwd = String::from_utf8(output.stdout).ok()?;
-    let shell = passwd.trim().rsplit(':').next()?;
-    (!shell.is_empty()).then(|| shell.to_string())
+    std::env::var("SHELL")
+        .ok()
+        .filter(|shell| !shell.is_empty())
+        .or_else(login_shell)
+        .unwrap_or_else(|| "bash".to_string())
 }
 
 /// The user's login shell.
@@ -87,13 +69,6 @@ impl Default for Config {
 
 impl Config {
     pub fn path() -> std::path::PathBuf {
-        // Use the host's ~/.config, not the Flatpak sandbox's XDG_CONFIG_HOME.
-        if is_flatpak() {
-            let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-            return std::path::PathBuf::from(home)
-                .join(".config")
-                .join("marcterm.toml");
-        }
         dirs::config_dir()
             .unwrap_or_else(|| std::path::PathBuf::from("."))
             .join("marcterm.toml")

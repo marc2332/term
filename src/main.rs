@@ -1,6 +1,5 @@
 mod components;
 mod config;
-mod flatpak;
 mod git;
 mod logging;
 mod session;
@@ -12,33 +11,6 @@ use components::app::App;
 use config::Config;
 use freya::borderless::BorderlessPlugin;
 use freya::prelude::*;
-
-/// Fall back to Adwaita when the host cursor theme isn't reachable in Flatpak.
-#[cfg(target_os = "linux")]
-fn fix_flatpak_cursor_theme() {
-    if !crate::flatpak::is_flatpak() {
-        return;
-    }
-
-    let theme_name = std::env::var("XCURSOR_THEME").unwrap_or_else(|_| "default".into());
-
-    if xcursor::CursorTheme::load(&theme_name)
-        .load_icon("left_ptr")
-        .is_none()
-    {
-        // Safe as no other thread has been spawned yet.
-        unsafe {
-            std::env::set_var("XCURSOR_THEME", "Adwaita");
-        }
-    }
-
-    if std::env::var("XCURSOR_SIZE").is_err() {
-        // Safe as no other thread has been spawned yet.
-        unsafe {
-            std::env::set_var("XCURSOR_SIZE", "24");
-        }
-    }
-}
 
 #[derive(Parser)]
 #[command(name = "marcterm", about, version)]
@@ -53,9 +25,6 @@ struct Cli {
 
 fn main() {
     logging::init();
-
-    #[cfg(target_os = "linux")]
-    fix_flatpak_cursor_theme();
 
     let cli = Cli::parse();
     let config = Config::load();

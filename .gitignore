@@ -1,5 +1,2 @@
 target
-flatpak/build-dir/
-flatpak/.flatpak-builder/
-flatpak/repo/
 result

@@ -213,10 +213,9 @@ const features = [
       <section class="install" id="install">
         <h2>Install</h2>
         <div class="install-block">
-          <h3>Flatpak (Linux)</h3>
-          <pre><code>flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-flatpak remote-add --if-not-exists --no-gpg-verify --user marcterm https://marc2332.github.io/term
-flatpak install --user marcterm io.marc.term</code></pre>
+          <h3>Debian / Ubuntu (Linux)</h3>
+          <p>Download the amd64 .deb from <a href="https://github.com/marc2332/marcterm/releases/latest">GitHub Releases</a>, then install it. Built on Ubuntu 24.04.</p>
+          <pre><code>sudo apt install ./marcterm_*-1_amd64.deb</code></pre>
         </div>
         <div class="install-block">
           <h3>Cargo</h3>

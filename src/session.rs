@@ -3,7 +3,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
-use crate::flatpak;
 use crate::state::{AppState, PanelNode, Tab, WorktreeGroup};
 
 /// Seconds since the Unix epoch, and how to render them for humans.
@@ -28,15 +27,11 @@ impl Timestamp {
     }
 }
 
-/// Machine-state dir, targeting the host's ~/.local/state inside Flatpak.
+/// Directory for persisted machine state.
 pub struct StateDir;
 
 impl StateDir {
     pub fn path() -> PathBuf {
-        if flatpak::is_flatpak() {
-            let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-            return PathBuf::from(home).join(".local/state/marcterm");
-        }
         dirs::state_dir()
             .unwrap_or_else(|| PathBuf::from("."))
             .join("marcterm")

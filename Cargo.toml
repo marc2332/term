@@ -3,9 +3,25 @@ name = "marcterm"
 edition = "2024"
 publish = true
 description = "my terminal as you might have guessed by the name"
-version = "0.6.1"
+version = "0.6.2"
 license = "MIT"
 repository = "https://github.com/marc2332/marcterm"
+
+[package.metadata.deb]
+maintainer = "Marc Espin <marc@mespin.me>"
+license-file = ["LICENSE.md", "0"]
+extended-description = "Terminal emulator built with Freya and Rust. Supports tabs, split panels, Git worktrees and persistent sessions."
+depends = "$auto, libvulkan1, libwayland-client0, libx11-6, libxcursor1, libxkbcommon0, xdg-utils"
+suggests = "gh"
+section = "x11"
+priority = "optional"
+assets = [
+  ["target/release/marcterm", "usr/bin/marcterm", "755"],
+  ["packaging/io.marc.term.desktop", "usr/share/applications/io.marc.term.desktop", "644"],
+  ["packaging/io.marc.term.metainfo.xml", "usr/share/metainfo/io.marc.term.metainfo.xml", "644"],
+  ["icon.png", "usr/share/icons/hicolor/128x128/apps/io.marc.term.png", "644"],
+  ["target/release/build/freya-skia-bindings-*/out/skia/LICENSE_SKIA", "usr/share/doc/marcterm/", "644"],
+]
 
 [[bin]]
 name = "marcterm"
@@ -39,6 +55,3 @@ gix = { version = "0.87", default-features = false, features = [
 ] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-
-[target.'cfg(target_os = "linux")'.dependencies]
-xcursor = "0.3"

@@ -12,8 +12,6 @@ use gix::diff::blob::{Diff, ResourceKind};
 use gix::object::tree::EntryKind;
 use serde::Deserialize;
 
-use crate::flatpak;
-
 pub type Result<T> = std::result::Result<T, String>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -229,17 +227,8 @@ enum PullRequestState {
 }
 
 fn pull_requests(main: &Path) -> HashMap<String, PullRequestInfo> {
-    let in_flatpak = flatpak::is_flatpak();
-    let mut command = Command::new(if in_flatpak { "flatpak-spawn" } else { "gh" });
-    if in_flatpak {
-        command
-            .arg("--host")
-            .arg(format!("--directory={}", main.display()))
-            .arg("gh");
-    } else {
-        command.current_dir(main);
-    }
-    let Ok(output) = command
+    let Ok(output) = Command::new("gh")
+        .current_dir(main)
         .args([
             "pr",
             "list",

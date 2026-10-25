@@ -19,18 +19,17 @@
 
 ## 📦 Installation
 
-### Flatpak (Linux)
+### Debian / Ubuntu (Linux)
 
-Install:
+Download the `.deb` for your architecture from [GitHub Releases](https://github.com/marc2332/marcterm/releases/latest), then install it:
+
 ```sh
-flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-flatpak remote-add --if-not-exists --no-gpg-verify --user marcterm https://marc2332.github.io/term
-flatpak install --user marcterm io.marc.term
+sudo apt install ./marcterm_*-1_amd64.deb
 ```
-Update:
-```sh
-flatpak update io.marc.term
-```
+
+The package installs the application, desktop launcher and icon. To update, download and install the newer package.
+
+Release packages are built on Ubuntu 24.04 for amd64. Older distributions may require building from source.
 
 ### Cargo
 
@@ -108,6 +107,26 @@ cargo build --release
 ```
 
 The compiled binary will be at `target/release/marcterm`.
+
+### Build a Debian package
+
+On Debian or Ubuntu, install `dpkg-dev` and the native build dependencies, then run:
+
+```sh
+cargo install cargo-deb --version 3.8.0 --locked
+cargo deb
+```
+
+`cargo-deb` builds the release binary and creates a `.deb` in Cargo's `target/debian` directory using the metadata in `Cargo.toml`. The package includes `/usr/share/applications/io.marc.term.desktop` and its icon.
+
+To package an existing native release build into a chosen directory:
+
+```sh
+mkdir -p dist
+cargo deb --no-build --output ./dist/
+```
+
+Build on the oldest distribution you intend to support so the generated library dependencies remain compatible.
 
 ## 📄 License
 

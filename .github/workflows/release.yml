@@ -40,7 +40,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends \
-            build-essential clang libclang-dev cmake pkg-config curl zstd \
+            build-essential clang libclang-dev cmake pkg-config curl zstd dpkg-dev desktop-file-utils \
             libfontconfig1-dev libfreetype-dev libxkbcommon-dev libwayland-dev \
             libgl1-mesa-dev libegl1-mesa-dev libvulkan-dev \
             libx11-dev libxcursor-dev libxrandr-dev libxi-dev libxcb1-dev
@@ -64,8 +64,8 @@ jobs:
           output="$RUNNER_TEMP/marcterm-release"
           package="$output/marcterm"
           install -Dm755 target/release/marcterm "$package/bin/marcterm"
-          install -Dm644 flatpak/io.marc.term.desktop "$package/share/applications/io.marc.term.desktop"
-          install -Dm644 flatpak/io.marc.term.metainfo.xml "$package/share/metainfo/io.marc.term.metainfo.xml"
+          install -Dm644 packaging/io.marc.term.desktop "$package/share/applications/io.marc.term.desktop"
+          install -Dm644 packaging/io.marc.term.metainfo.xml "$package/share/metainfo/io.marc.term.metainfo.xml"
           install -Dm644 icon.png "$package/share/icons/hicolor/128x128/apps/io.marc.term.png"
           install -Dm644 LICENSE.md "$package/share/licenses/marcterm/LICENSE.md"
           find target/release/build -name LICENSE_SKIA -exec cp '{}' "$package/share/licenses/marcterm/" \;
@@ -77,6 +77,27 @@ jobs:
             exit 1
           fi
           sha256sum "$archive" > "$archive.sha256"
+
+      - name: Install cargo-deb
+        run: cargo install cargo-deb --version 3.8.0 --locked
+
+      - name: Build Debian package
+        run: |
+          output="$RUNNER_TEMP/marcterm-release"
+          cargo deb --no-build --output "$output/"
+          cd "$output"
+          for package in *.deb; do
+            sha256sum "$package" > "$package.sha256"
+          done
+
+      - name: Validate Debian package
+        run: |
+          package=$(find "$RUNNER_TEMP/marcterm-release" -maxdepth 1 -name '*.deb' -print -quit)
+          dpkg-deb --info "$package"
+          sudo apt-get install --yes "$package"
+          marcterm --version
+          desktop-file-validate /usr/share/applications/io.marc.term.desktop
+          test -f /usr/share/icons/hicolor/128x128/apps/io.marc.term.png
 
       - name: Publish to crates.io (dry run)
         continue-on-error: true
@@ -95,8 +116,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          archive="$RUNNER_TEMP/marcterm-release/marcterm-$RELEASE_TAG-x86_64-linux.tar.zst"
-          gh release create "$RELEASE_TAG" "$archive" "$archive.sha256" \
+          output="$RUNNER_TEMP/marcterm-release"
+          archive="$output/marcterm-$RELEASE_TAG-x86_64-linux.tar.zst"
+          gh release create "$RELEASE_TAG" "$archive" "$archive.sha256" "$output/"*.deb "$output/"*.deb.sha256 \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --title "$RELEASE_TAG" \
             --draft

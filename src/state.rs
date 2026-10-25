@@ -11,7 +11,6 @@ use freya::terminal::*;
 use futures::FutureExt;
 use serde::{Deserialize, Serialize};
 
-use crate::flatpak;
 use crate::git::{self, ProjectInfo, PullRequestStatus, Worktree};
 use crate::session::{PanelLayout, ProjectPrefs, RecentProject, Session, SessionTab, Timestamp};
 
@@ -186,34 +185,13 @@ pub enum PanelNode {
 
 impl PanelNode {
     fn make_handle(shell: &str, cwd: Option<PathBuf>) -> TerminalHandle {
-        let cmd = if flatpak::is_flatpak() {
-            let mut cmd = CommandBuilder::new("flatpak-spawn");
-            cmd.args(["--host", "--watch-bus"]);
-            cmd.arg("--env=TERM=xterm-256color");
-            cmd.arg("--env=COLORTERM=truecolor");
-            cmd.arg("--env=LANG=en_GB.UTF-8");
-            if let Some(ref dir) = cwd {
-                cmd.arg(format!("--directory={}", dir.display()));
-            }
-            // A scope per shell keeps it out of the session helper cgroup,
-            // so an OOM kill there cannot take every panel down at once.
-            if flatpak::host_has_systemd_run() {
-                cmd.args(["systemd-run", "--user", "--scope", "--quiet", "--collect"]);
-            }
-            cmd.arg(shell);
-            // https://github.com/flatpak/flatpak/issues/3697
-            cmd.set_controlling_tty(false);
-            cmd
-        } else {
-            let mut cmd = CommandBuilder::new(shell);
-            cmd.env("TERM", "xterm-256color");
-            cmd.env("COLORTERM", "truecolor");
-            cmd.env("LANG", "en_GB.UTF-8");
-            if let Some(dir) = cwd {
-                cmd.cwd(dir);
-            }
-            cmd
-        };
+        let mut cmd = CommandBuilder::new(shell);
+        cmd.env("TERM", "xterm-256color");
+        cmd.env("COLORTERM", "truecolor");
+        cmd.env("LANG", "en_GB.UTF-8");
+        if let Some(dir) = cwd {
+            cmd.cwd(dir);
+        }
         TerminalHandle::new(TerminalId::new(), PtyBackend::new(cmd), Some(10_000))
             .expect("failed to spawn PTY")
     }
