@@ -3,7 +3,7 @@ name = "marcterm"
 edition = "2024"
 publish = true
 description = "my terminal as you might have guessed by the name"
-version = "0.6.2"
+version = "0.6.3"
 license = "MIT"
 repository = "https://github.com/marc2332/marcterm"
 
@@ -16,11 +16,31 @@ suggests = "gh"
 section = "x11"
 priority = "optional"
 assets = [
-  ["target/release/marcterm", "usr/bin/marcterm", "755"],
-  ["packaging/io.marc.term.desktop", "usr/share/applications/io.marc.term.desktop", "644"],
-  ["packaging/io.marc.term.metainfo.xml", "usr/share/metainfo/io.marc.term.metainfo.xml", "644"],
-  ["icon.png", "usr/share/icons/hicolor/128x128/apps/io.marc.term.png", "644"],
-  ["target/release/build/freya-skia-bindings-*/out/skia/LICENSE_SKIA", "usr/share/doc/marcterm/", "644"],
+  [
+    "target/release/marcterm",
+    "usr/bin/marcterm",
+    "755",
+  ],
+  [
+    "packaging/io.marc.term.desktop",
+    "usr/share/applications/io.marc.term.desktop",
+    "644",
+  ],
+  [
+    "packaging/io.marc.term.metainfo.xml",
+    "usr/share/metainfo/io.marc.term.metainfo.xml",
+    "644",
+  ],
+  [
+    "icon.png",
+    "usr/share/icons/hicolor/128x128/apps/io.marc.term.png",
+    "644",
+  ],
+  [
+    "target/release/build/freya-skia-bindings-*/out/skia/LICENSE_SKIA",
+    "usr/share/doc/marcterm/",
+    "644",
+  ],
 ]
 
 [[bin]]
@@ -28,7 +48,7 @@ name = "marcterm"
 path = "src/main.rs"
 
 [dependencies]
-freya = { git = "https://github.com/marc2332/freya", rev = "f748070f9109b06f846ded4a5172faf9e5e53d6e", features = [
+freya = { version = "0.5.0-rc.13", features = [
   "terminal-pty",
   "radio",
   "material-design",
@@ -36,7 +56,7 @@ freya = { git = "https://github.com/marc2332/freya", rev = "f748070f9109b06f846d
   "router",
   "borderless",
 ] }
-freya-metrics-plugin = { git = "https://github.com/marc2332/freya", rev = "f748070f9109b06f846ded4a5172faf9e5e53d6e" }
+freya-metrics-plugin = "0.5.0-rc.13"
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
